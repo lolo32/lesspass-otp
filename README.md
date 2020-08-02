@@ -64,7 +64,6 @@ assert_eq!(token, "586893");
 
 // ------------------
 // Encrypt a HOTP before storing it
-# fn store_otp_secret(_secret: &[u8]) {}
 let encrypted = master.secret_totp("github.com", "test@example.com", otp_secret)?;
 assert_eq!(encrypted, &[
         255, 37, 183, 103, 211, 97, 25, 139, 84, 212, 123,
@@ -77,7 +76,6 @@ store_otp_secret(&encrypted);
 
 // ------------------
 // Decode OTP secret
-# let retrieve_otp_secret = || encrypted;
 let encrypted = retrieve_otp_secret();
 
 // Wrong login information, secret cannot be retrieved
@@ -90,6 +88,4 @@ assert_ne!(encrypted.to_vec(), wrong_decrypted);
 // Correct information
 let decrypted = master.secret_totp("github.com", "test@example.com", &encrypted)?;
 assert_eq!(decrypted, otp_secret);
-
-# Ok::<(), lesspass_otp::LessPassError>(())
 ```

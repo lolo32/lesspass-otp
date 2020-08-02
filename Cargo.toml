@@ -8,6 +8,9 @@ keywords = ["lesspass", "totp", "hotp"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[badges]
+codecov = { repository = "lolo32/lesspass-otp", branch = "master", service = "github" }
+
 [features]
 default = ["std_time"]
 std_time = []

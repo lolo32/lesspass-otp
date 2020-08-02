@@ -1,0 +1,3 @@
+(function() {var implementors = {};
+implementors["lesspass_otp"] = [{"text":"impl <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/default/trait.Default.html\" title=\"trait core::default::Default\">Default</a> for <a class=\"struct\" href=\"lesspass_otp/struct.Settings.html\" title=\"struct lesspass_otp::Settings\">Settings</a>","synthetic":false,"types":["lesspass_otp::settings::Settings"]}];
+if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

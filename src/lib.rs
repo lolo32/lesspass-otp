@@ -10,9 +10,6 @@
     test(no_crate_inject, attr(deny(warnings))),
     test(attr(allow(unused_variables)))
 )]
-#![feature(external_doc)]
-//#![doc(html_playground_url = "https://playground.example.com/")]
-#![doc(test(no_crate_inject))]
 
 //! This crate can be used to generate password for any site, with only a master password,
 //! a site name, a login and a counter. Generate TOTP or HOTP too.

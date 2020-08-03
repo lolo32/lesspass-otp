@@ -8,7 +8,8 @@
 #![deny(unused_qualifications)]
 #![doc(
     test(no_crate_inject, attr(deny(warnings))),
-    test(attr(allow(unused_variables)))
+    test(attr(allow(unused_variables))),
+    html_no_source
 )]
 
 //! This crate can be used to generate password for any site, with only a master password,

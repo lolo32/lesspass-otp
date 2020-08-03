@@ -9,7 +9,7 @@ pub struct Entropy(BigUint);
 
 impl Entropy {
     /// Return a salt, combining `site`, `login` and `counter` from strings.
-    pub(crate) fn salt(site: &str, login: &str, counter: u32) -> Vec<u8> {
+    pub fn salt(site: &str, login: &str, counter: u32) -> Vec<u8> {
         Self::salt_byte(
             site.as_bytes(),
             login.as_bytes(),
@@ -17,12 +17,12 @@ impl Entropy {
         )
     }
     /// Return a salt, combining `site`, `login` and `counter` from byte array.
-    pub(crate) fn salt_byte(site: &[u8], login: &[u8], counter: &[u8]) -> Vec<u8> {
+    pub fn salt_byte(site: &[u8], login: &[u8], counter: &[u8]) -> Vec<u8> {
         [site, login, counter].concat()
     }
 
     /// Generate the entropy, from the master password, a salt and a number of iterations
-    pub(crate) fn new(algorithm: Algorithm, master: &Master, salt: &[u8], iterations: u32) -> Self {
+    pub fn new(algorithm: Algorithm, master: &Master, salt: &[u8], iterations: u32) -> Self {
         Self(BigUint::from_bytes_be(
             algorithm
                 .pbkdf2(master.bytes(), salt, iterations)
@@ -35,7 +35,7 @@ impl Entropy {
     /// It gives us quotient and a remainder.
     /// Remainder is always between 0 and length of pool of chars.
     /// We use it as an index in pool of chars for the first letter of our generated password.
-    pub(crate) fn consume(&mut self, len: &BigUint) -> usize {
+    pub fn consume(&mut self, len: &BigUint) -> usize {
         use num_integer::Integer;
         use num_traits::ToPrimitive;
 

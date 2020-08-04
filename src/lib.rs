@@ -273,7 +273,10 @@ impl<'a> LessPass<'a> {
             password_len += &BIGINT1 as &BigUint;
         }
 
-        Ok(String::from_utf8(password).unwrap())
+        Ok(match String::from_utf8(password) {
+            Ok(s) => s,
+            _ => unreachable!(),
+        })
     }
 
     /// Decode a HOTP secret from aa previous encoded secret, or encode a clear one.
@@ -447,7 +450,10 @@ impl<'a> LessPass<'a> {
         let len = hash.len().sub(1);
 
         // Get the start point to encode the information
-        let start = (hash.last().unwrap() & len as u8) as usize;
+        let start = (match hash.last() {
+            Some(byte) => byte,
+            None => unreachable!(),
+        } & len as u8) as usize;
 
         Ok(if encrypt {
             // Store the length of the secret
@@ -461,7 +467,10 @@ impl<'a> LessPass<'a> {
             hash
         } else {
             let mut decrypted = Vec::new();
-            let pass_length = (*secret.last().unwrap() ^ hash[len]) as usize;
+            let pass_length = (match secret.last() {
+                Some(byte) => byte,
+                None => unreachable!(),
+            } ^ hash[len]) as usize;
             for i in 0..pass_length {
                 let pos = (start + i) % len;
                 decrypted.push(hash[pos] ^ secret[pos]);

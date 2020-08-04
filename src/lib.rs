@@ -627,10 +627,45 @@ mod tests {
         let encrypted = master
             .secret_totp("example.com", "test@example.com", secret)
             .unwrap();
+        assert_eq!(encrypted.len(), 32);
         let decrypted = master
             .secret_totp("example.com", "test@example.com", &encrypted)
             .unwrap();
 
         assert_eq!(secret.to_vec(), decrypted);
+    }
+
+    #[test]
+    fn hotp_encrypt_decrypt_512() {
+        let master = LessPass::new("DEADBEEF", Algorithm::SHA256).unwrap();
+
+        // More than 32 bytes to use sha512
+        let secret = b"12345678901234567890123456789012345678901234567890";
+
+        let encrypted = master
+            .secret_hotp("example.com", "test@example.com", secret)
+            .unwrap();
+        assert_eq!(encrypted.len(), 64);
+        let decrypted = master
+            .secret_hotp("example.com", "test@example.com", &encrypted)
+            .unwrap();
+        assert_eq!(secret.to_vec(), decrypted);
+    }
+
+    #[test]
+    fn wrong_otp_secret_length() {
+        let master = LessPass::new("DEADBEEF", Algorithm::SHA256).unwrap();
+
+        // no secret, so error
+        let secret = b"";
+        let encrypted = master.secret_hotp("example.com", "test@example.com", secret);
+        assert!(encrypted.is_err());
+        assert_eq!(encrypted.err().unwrap(), LessPassError::InvalidLength);
+
+        // more than 64 bytes
+        let secret = b"12345678901234567890123456789012345678901234567890123456789012345";
+        let encrypted = master.secret_hotp("example.com", "test@example.com", secret);
+        assert!(encrypted.is_err());
+        assert_eq!(encrypted.err().unwrap(), LessPassError::InvalidLength);
     }
 }

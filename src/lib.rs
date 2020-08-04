@@ -237,12 +237,7 @@ impl<'a> LessPass<'a> {
         // Generate salt
         let salt = Entropy::salt(site, login, counter);
         // Calculate entropy
-        let mut entropy = Entropy::new(
-            algorithm,
-            &self.master,
-            salt.as_slice(),
-            settings.get_iterations(),
-        );
+        let mut entropy = Entropy::new(algorithm, &self.master, &salt, settings.get_iterations());
 
         // Generate the password now that all prerequisite is available
 

@@ -281,4 +281,10 @@ mod tests {
         assert_eq!(t.hotp(8), "399871");
         assert_eq!(t.hotp(9), "520489");
     }
+
+    #[test]
+    fn totp() {
+        let t = Otp::new(b"1234567890", 9, None, None, None).unwrap();
+        assert_eq!(t.totp().len(), 9);
+    }
 }

@@ -47,3 +47,36 @@ impl fmt::Display for LessPassError {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn to_string() {
+        assert_eq!(
+            LessPassError::PasswordTooShort(10, 5).to_string(),
+            "Password length cannot be less than 10 characters, it's 5 length"
+        );
+        assert_eq!(
+            LessPassError::PasswordTooLong(10, 15, Algorithm::SHA384).to_string(),
+            "Password length cannot be more than 10 characters if algorithm is Sha2-384. It's 15 length."
+        );
+        assert_eq!(
+            LessPassError::NoCharsetSelected.to_string(),
+            "No charset selected to generate a password. Please use at least one."
+        );
+        assert_eq!(
+            LessPassError::UnsupportedAlgorithm.to_string(),
+            "This algorithm is not supported."
+        );
+        assert_eq!(
+            LessPassError::InvalidLength.to_string(),
+            "The number of digits is not valid."
+        );
+        assert_eq!(
+            LessPassError::InvalidBase32.to_string(),
+            "The provided string is not a valid base32 encoded string."
+        );
+    }
+}

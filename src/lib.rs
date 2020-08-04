@@ -3,7 +3,7 @@
 #![deny(missing_debug_implementations)]
 #![deny(trivial_numeric_casts)]
 //#![deny(unreachable_pub)]
-#![deny(unsafe_code)]
+//#![deny(unsafe_code)]
 #![deny(unused_extern_crates)]
 #![deny(unused_qualifications)]
 #![doc(

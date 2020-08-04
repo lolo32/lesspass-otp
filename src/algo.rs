@@ -2,20 +2,11 @@
 
 use core::fmt;
 
-use hmac::{Hmac, Mac, NewMac};
+use hmac::{digest::generic_array::typenum::Unsigned, digest::FixedOutput, Hmac, Mac, NewMac};
+use pbkdf2::pbkdf2 as pbkdf2_;
 use sha1::Sha1;
 use sha2::{Sha256, Sha384, Sha512};
 use sha3::{Sha3_256, Sha3_384, Sha3_512};
-
-use pbkdf2::pbkdf2;
-
-type HmacSha1 = Hmac<Sha1>;
-type HmacSha256 = Hmac<Sha256>;
-type HmacSha384 = Hmac<Sha384>;
-type HmacSha512 = Hmac<Sha512>;
-type HmacSha3_256 = Hmac<Sha3_256>;
-type HmacSha3_384 = Hmac<Sha3_384>;
-type HmacSha3_512 = Hmac<Sha3_512>;
 
 /// Selects the hash algorithm to use in PBKDF or HMAC.
 #[derive(PartialEq, Eq, Copy, Clone, Debug)]
@@ -94,42 +85,28 @@ impl Algorithm {
     /// ```
     #[must_use]
     pub fn pbkdf2(self, key: &[u8], data: &[u8], iterations: u32) -> Vec<u8> {
+        macro_rules! pbkdf2_hash {
+            ($hash:ty) => {{
+                // Length of the output array, based on $hash specified
+                let len = <$hash as FixedOutput>::OutputSize::to_usize();
+                // Initialize an array of the specific length
+                let mut hex = Vec::with_capacity(len);
+                unsafe { hex.set_len(len) };
+                // Compute the PBKDF2, based on the selected $hash
+                pbkdf2_::<Hmac<$hash>>(key, data, iterations, &mut hex.as_mut_slice());
+                // Return the array
+                hex
+            }};
+        }
+
         match self {
-            Self::SHA1 => {
-                let mut hex = [0; 20];
-                pbkdf2::<HmacSha1>(key, data, iterations, &mut hex);
-                hex.to_vec()
-            }
-            Self::SHA256 => {
-                let mut hex = [0; 32];
-                pbkdf2::<HmacSha256>(key, data, iterations, &mut hex);
-                hex.to_vec()
-            }
-            Self::SHA384 => {
-                let mut hex = [0; 48];
-                pbkdf2::<HmacSha384>(key, data, iterations, &mut hex);
-                hex.to_vec()
-            }
-            Self::SHA512 => {
-                let mut hex = [0; 64];
-                pbkdf2::<HmacSha512>(key, data, iterations, &mut hex);
-                hex.to_vec()
-            }
-            Self::SHA3_256 => {
-                let mut hex = [0; 32];
-                pbkdf2::<HmacSha3_256>(key, data, iterations, &mut hex);
-                hex.to_vec()
-            }
-            Self::SHA3_384 => {
-                let mut hex = [0; 48];
-                pbkdf2::<HmacSha3_384>(key, data, iterations, &mut hex);
-                hex.to_vec()
-            }
-            Self::SHA3_512 => {
-                let mut hex = [0; 64];
-                pbkdf2::<HmacSha3_512>(key, data, iterations, &mut hex);
-                hex.to_vec()
-            }
+            Self::SHA1 => pbkdf2_hash!(Sha1),
+            Self::SHA256 => pbkdf2_hash!(Sha256),
+            Self::SHA384 => pbkdf2_hash!(Sha384),
+            Self::SHA512 => pbkdf2_hash!(Sha512),
+            Self::SHA3_256 => pbkdf2_hash!(Sha3_256),
+            Self::SHA3_384 => pbkdf2_hash!(Sha3_384),
+            Self::SHA3_512 => pbkdf2_hash!(Sha3_512),
         }
     }
 
@@ -162,56 +139,24 @@ impl Algorithm {
     /// ```
     #[must_use]
     pub fn hmac(self, key: &[u8], data: &[u8]) -> Vec<u8> {
+        macro_rules! hmac_hash {
+            ($hash:ty) => {{
+                // Create the HMAC
+                let mut mac = <Hmac<$hash>>::new_varkey(key).expect("Hmac creation failed");
+                // Do the hashing
+                mac.update(data);
+                // Return the result
+                mac.finalize().into_bytes().to_vec()
+            }};
+        }
         match self {
-            Self::SHA1 => {
-                // Create the HMAC
-                let mut mac = HmacSha1::new_varkey(key).expect("Hmac creation failed");
-                // Do the hashing
-                mac.update(data);
-                mac.finalize().into_bytes().to_vec()
-            }
-            Self::SHA256 => {
-                // Create the HMAC
-                let mut mac = HmacSha256::new_varkey(key).expect("Hmac creation failed");
-                // Do the hashing
-                mac.update(data);
-                mac.finalize().into_bytes().to_vec()
-            }
-            Self::SHA384 => {
-                // Create the HMAC
-                let mut mac = HmacSha384::new_varkey(key).expect("Hmac creation failed");
-                // Do the hashing
-                mac.update(data);
-                mac.finalize().into_bytes().to_vec()
-            }
-            Self::SHA512 => {
-                // Create the HMAC
-                let mut mac = HmacSha512::new_varkey(key).expect("Hmac creation failed");
-                // Do the hashing
-                mac.update(data);
-                mac.finalize().into_bytes().to_vec()
-            }
-            Self::SHA3_256 => {
-                // Create the HMAC
-                let mut mac = HmacSha3_256::new_varkey(key).expect("Hmac creation failed");
-                // Do the hashing
-                mac.update(data);
-                mac.finalize().into_bytes().to_vec()
-            }
-            Self::SHA3_384 => {
-                // Create the HMAC
-                let mut mac = HmacSha3_384::new_varkey(key).expect("Hmac creation failed");
-                // Do the hashing
-                mac.update(data);
-                mac.finalize().into_bytes().to_vec()
-            }
-            Self::SHA3_512 => {
-                // Create the HMAC
-                let mut mac = HmacSha3_512::new_varkey(key).expect("Hmac creation failed");
-                // Do the hashing
-                mac.update(data);
-                mac.finalize().into_bytes().to_vec()
-            }
+            Self::SHA1 => hmac_hash!(Sha1),
+            Self::SHA256 => hmac_hash!(Sha256),
+            Self::SHA384 => hmac_hash!(Sha384),
+            Self::SHA512 => hmac_hash!(Sha512),
+            Self::SHA3_256 => hmac_hash!(Sha3_256),
+            Self::SHA3_384 => hmac_hash!(Sha3_384),
+            Self::SHA3_512 => hmac_hash!(Sha3_512),
         }
     }
 }
@@ -245,7 +190,7 @@ mod tests {
     }
 
     #[test]
-    fn check_hmac() {
+    fn check_rfc_hmac() {
         assert_eq!(
             Algorithm::SHA1.hmac(b"Jefe", b"what do ya want for nothing?"),
             [
@@ -311,6 +256,78 @@ mod tests {
                 0xe7, 0x09, 0x35, 0x0b, 0x28, 0x7b, 0xae, 0xc9, 0x21, 0xfd, 0x7c, 0xa0, 0xee, 0x7a,
                 0x0c, 0x31, 0xd0, 0x22, 0xa9, 0x5e, 0x1f, 0xc9, 0x2b, 0xa9, 0xd7, 0x7d, 0xf8, 0x83,
                 0x96, 0x02, 0x75, 0xbe, 0xb4, 0xe6, 0x20, 0x24
+            ]
+            .to_vec()
+        );
+    }
+
+    #[test]
+    fn tests_rfc_pbkdf2() {
+        assert_eq!(
+            Algorithm::SHA1.pbkdf2(b"password", b"salt", 4096),
+            [
+                0x4b, 0x00, 0x79, 0x01, 0xb7, 0x65, 0x48, 0x9a, 0xbe, 0xad, 0x49, 0xd9, 0x26, 0xf7,
+                0x21, 0xd0, 0x65, 0xa4, 0x29, 0xc1
+            ]
+            .to_vec()
+        );
+        assert_eq!(
+            Algorithm::SHA256.pbkdf2(b"password", b"salt", 4096),
+            [
+                0xc5, 0xe4, 0x78, 0xd5, 0x92, 0x88, 0xc8, 0x41, 0xaa, 0x53, 0x0d, 0xb6, 0x84, 0x5c,
+                0x4c, 0x8d, 0x96, 0x28, 0x93, 0xa0, 0x01, 0xce, 0x4e, 0x11, 0xa4, 0x96, 0x38, 0x73,
+                0xaa, 0x98, 0x13, 0x4a
+            ]
+            .to_vec()
+        );
+        assert_eq!(
+            Algorithm::SHA384.pbkdf2(b"password", b"salt", 4096),
+            [
+                0x55, 0x97, 0x26, 0xbe, 0x38, 0xdb, 0x12, 0x5b, 0xc8, 0x5e, 0xd7, 0x89, 0x5f, 0x6e,
+                0x3c, 0xf5, 0x74, 0xc7, 0xa0, 0x1c, 0x08, 0x0c, 0x34, 0x47, 0xdb, 0x1e, 0x8a, 0x76,
+                0x76, 0x4d, 0xeb, 0x3c, 0x30, 0x7b, 0x94, 0x85, 0x3f, 0xbe, 0x42, 0x4f, 0x64, 0x88,
+                0xc5, 0xf4, 0xf1, 0x28, 0x96, 0x26
+            ]
+            .to_vec()
+        );
+        assert_eq!(
+            Algorithm::SHA512.pbkdf2(b"password", b"salt", 4096),
+            [
+                0xd1, 0x97, 0xb1, 0xb3, 0x3d, 0xb0, 0x14, 0x3e, 0x01, 0x8b, 0x12, 0xf3, 0xd1, 0xd1,
+                0x47, 0x9e, 0x6c, 0xde, 0xbd, 0xcc, 0x97, 0xc5, 0xc0, 0xf8, 0x7f, 0x69, 0x02, 0xe0,
+                0x72, 0xf4, 0x57, 0xb5, 0x14, 0x3f, 0x30, 0x60, 0x26, 0x41, 0xb3, 0xd5, 0x5c, 0xd3,
+                0x35, 0x98, 0x8c, 0xb3, 0x6b, 0x84, 0x37, 0x60, 0x60, 0xec, 0xd5, 0x32, 0xe0, 0x39,
+                0xb7, 0x42, 0xa2, 0x39, 0x43, 0x4a, 0xf2, 0xd5
+            ]
+            .to_vec()
+        );
+        assert_eq!(
+            Algorithm::SHA3_256.pbkdf2(b"password", b"salt", 4096),
+            [
+                0x77, 0x8b, 0x6e, 0x23, 0x7a, 0x0f, 0x49, 0x62, 0x15, 0x49, 0xff, 0x70, 0xd2, 0x18,
+                0xd2, 0x08, 0x07, 0x56, 0xb9, 0xfb, 0x38, 0xd7, 0x1b, 0x5d, 0x7e, 0xf4, 0x47, 0xfa,
+                0x22, 0x54, 0xaf, 0x61
+            ]
+            .to_vec()
+        );
+        assert_eq!(
+            Algorithm::SHA3_384.pbkdf2(b"password", b"salt", 4096),
+            [
+                0x9a, 0x5f, 0x1e, 0x45, 0xe8, 0xb8, 0x3f, 0x1b, 0x25, 0x9b, 0xa7, 0x2d, 0x11, 0xc5,
+                0x90, 0x87, 0x01, 0xb8, 0x67, 0x8b, 0x86, 0xf0, 0x1d, 0x81, 0x19, 0x67, 0x71, 0x81,
+                0x8e, 0x61, 0x4d, 0x01, 0x79, 0x7d, 0x3d, 0x5a, 0xc4, 0x40, 0x43, 0x5f, 0x00, 0x20,
+                0x9c, 0xae, 0x87, 0x23, 0xc5, 0x8c
+            ]
+            .to_vec()
+        );
+        assert_eq!(
+            Algorithm::SHA3_512.pbkdf2(b"password", b"salt", 4096),
+            [
+                0x2b, 0xfa, 0xf2, 0xd5, 0xce, 0xb6, 0xd1, 0x0f, 0x5e, 0x26, 0x2c, 0xd9, 0x02, 0x48,
+                0x8c, 0xfd, 0x44, 0x89, 0x61, 0x4e, 0xcd, 0x67, 0x09, 0xe5, 0xee, 0x39, 0x5d, 0xc3,
+                0x3f, 0x2e, 0x9a, 0xd7, 0xf8, 0x9d, 0x31, 0xad, 0x67, 0x81, 0xe9, 0x09, 0x40, 0xe9,
+                0xe5, 0x34, 0xff, 0x44, 0xb8, 0x17, 0x15, 0x9d, 0xdc, 0xd3, 0xbd, 0xce, 0x33, 0x73,
+                0x54, 0x11, 0x86, 0xb7, 0x27, 0x34, 0x02, 0x31
             ]
             .to_vec()
         );

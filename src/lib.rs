@@ -237,12 +237,7 @@ impl<'a> LessPass<'a> {
         // Generate salt
         let salt = Entropy::salt(site, login, counter);
         // Calculate entropy
-        let mut entropy = Entropy::new(
-            algorithm,
-            &self.master,
-            salt.as_slice(),
-            settings.get_iterations(),
-        );
+        let mut entropy = Entropy::new(algorithm, &self.master, &salt, settings.get_iterations());
 
         // Generate the password now that all prerequisite is available
 
@@ -278,7 +273,10 @@ impl<'a> LessPass<'a> {
             password_len += &BIGINT1 as &BigUint;
         }
 
-        Ok(String::from_utf8(password).unwrap())
+        Ok(match String::from_utf8(password) {
+            Ok(s) => s,
+            _ => unreachable!(),
+        })
     }
 
     /// Decode a HOTP secret from aa previous encoded secret, or encode a clear one.
@@ -452,7 +450,10 @@ impl<'a> LessPass<'a> {
         let len = hash.len().sub(1);
 
         // Get the start point to encode the information
-        let start = (hash.last().unwrap() & len as u8) as usize;
+        let start = (match hash.last() {
+            Some(byte) => byte,
+            None => unreachable!(),
+        } & len as u8) as usize;
 
         Ok(if encrypt {
             // Store the length of the secret
@@ -466,7 +467,10 @@ impl<'a> LessPass<'a> {
             hash
         } else {
             let mut decrypted = Vec::new();
-            let pass_length = (*secret.last().unwrap() ^ hash[len]) as usize;
+            let pass_length = (match secret.last() {
+                Some(byte) => byte,
+                None => unreachable!(),
+            } ^ hash[len]) as usize;
             for i in 0..pass_length {
                 let pos = (start + i) % len;
                 decrypted.push(hash[pos] ^ secret[pos]);
@@ -632,10 +636,45 @@ mod tests {
         let encrypted = master
             .secret_totp("example.com", "test@example.com", secret)
             .unwrap();
+        assert_eq!(encrypted.len(), 32);
         let decrypted = master
             .secret_totp("example.com", "test@example.com", &encrypted)
             .unwrap();
 
         assert_eq!(secret.to_vec(), decrypted);
+    }
+
+    #[test]
+    fn hotp_encrypt_decrypt_512() {
+        let master = LessPass::new("DEADBEEF", Algorithm::SHA256).unwrap();
+
+        // More than 32 bytes to use sha512
+        let secret = b"12345678901234567890123456789012345678901234567890";
+
+        let encrypted = master
+            .secret_hotp("example.com", "test@example.com", secret)
+            .unwrap();
+        assert_eq!(encrypted.len(), 64);
+        let decrypted = master
+            .secret_hotp("example.com", "test@example.com", &encrypted)
+            .unwrap();
+        assert_eq!(secret.to_vec(), decrypted);
+    }
+
+    #[test]
+    fn wrong_otp_secret_length() {
+        let master = LessPass::new("DEADBEEF", Algorithm::SHA256).unwrap();
+
+        // no secret, so error
+        let secret = b"";
+        let encrypted = master.secret_hotp("example.com", "test@example.com", secret);
+        assert!(encrypted.is_err());
+        assert_eq!(encrypted.err().unwrap(), LessPassError::InvalidLength);
+
+        // more than 64 bytes
+        let secret = b"12345678901234567890123456789012345678901234567890123456789012345";
+        let encrypted = master.secret_hotp("example.com", "test@example.com", secret);
+        assert!(encrypted.is_err());
+        assert_eq!(encrypted.err().unwrap(), LessPassError::InvalidLength);
     }
 }

@@ -10,11 +10,7 @@ pub struct Entropy(BigUint);
 impl Entropy {
     /// Return a salt, combining `site`, `login` and `counter` from strings.
     pub fn salt(site: &str, login: &str, counter: u32) -> Vec<u8> {
-        Self::salt_byte(
-            site.as_bytes(),
-            login.as_bytes(),
-            to_hex(counter).as_slice(),
-        )
+        Self::salt_byte(site.as_bytes(), login.as_bytes(), &to_hex(counter))
     }
     /// Return a salt, combining `site`, `login` and `counter` from byte array.
     pub fn salt_byte(site: &[u8], login: &[u8], counter: &[u8]) -> Vec<u8> {
@@ -23,11 +19,11 @@ impl Entropy {
 
     /// Generate the entropy, from the master password, a salt and a number of iterations
     pub fn new(algorithm: Algorithm, master: &Master, salt: &[u8], iterations: u32) -> Self {
-        Self(BigUint::from_bytes_be(
-            algorithm
-                .pbkdf2(master.bytes(), salt, iterations)
-                .as_slice(),
-        ))
+        Self(BigUint::from_bytes_be(&algorithm.pbkdf2(
+            master.bytes(),
+            salt,
+            iterations,
+        )))
     }
 
     /// long division between entropy and length of pool of chars.
@@ -57,7 +53,7 @@ mod tests {
     fn reference() {
         let master = Master::new("tHis is a g00d! password", Algorithm::SHA256).unwrap();
         let salt = Entropy::salt("lesspass.com", "♥", 1);
-        let e = Entropy::new(Algorithm::SHA256, &master, salt.as_slice(), 1);
+        let e = Entropy::new(Algorithm::SHA256, &master, &salt, 1);
         assert_eq!(
             e.0,
             BigUint::parse_bytes(
@@ -72,7 +68,7 @@ mod tests {
     fn another_reference_vector() {
         let master = Master::new("password", Algorithm::SHA256).unwrap();
         let salt = Entropy::salt("example.org", "contact@example.org", 1);
-        let e = Entropy::new(Algorithm::SHA256, &master, salt.as_slice(), 100_000);
+        let e = Entropy::new(Algorithm::SHA256, &master, &salt, 100_000);
         assert_eq!(
             e.0,
             BigUint::parse_bytes(

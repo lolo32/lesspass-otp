@@ -166,7 +166,10 @@ impl Otp {
         let digest = self.algorithm.hmac(&self.secret, &counter.to_be_bytes());
 
         // Truncate
-        let off = (digest.last().unwrap() & 0xf) as usize;
+        let off = (match digest.last() {
+            Some(byte) => byte,
+            None => unreachable!(),
+        } & 0xf) as usize;
         let binary = (u64::from(digest[off]) & 0x7f) << 24
             | (u64::from(digest[off + 1]) & 0xff) << 16
             | (u64::from(digest[off + 2]) & 0xff) << 8

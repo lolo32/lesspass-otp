@@ -2,7 +2,7 @@
 
 use core::fmt;
 
-use hmac::{digest::FixedOutput, digest::generic_array::typenum::Unsigned, Hmac, Mac, NewMac};
+use hmac::{digest::generic_array::typenum::Unsigned, digest::FixedOutput, Hmac, Mac, NewMac};
 use pbkdf2::pbkdf2 as pbkdf2_;
 use sha1::Sha1;
 use sha2::{Sha256, Sha384, Sha512};
@@ -86,19 +86,17 @@ impl Algorithm {
     #[must_use]
     pub fn pbkdf2(self, key: &[u8], data: &[u8], iterations: u32) -> Vec<u8> {
         macro_rules! pbkdf2_hash {
-            ($hash:ty) => {
-                {
-                    // Length of the output array, based on $hash specified
-                    let len = <$hash as FixedOutput>::OutputSize::to_usize();
-                    // Initialize an array of the specific length
-                    let mut hex = Vec::with_capacity(len);
-                    unsafe { hex.set_len(len) };
-                    // Compute the PBKDF2, based on the selected $hash
-                    pbkdf2_::<Hmac<$hash>>(key, data, iterations, &mut hex.as_mut_slice());
-                    // Return the array
-                    hex
-                }
-            }
+            ($hash:ty) => {{
+                // Length of the output array, based on $hash specified
+                let len = <$hash as FixedOutput>::OutputSize::to_usize();
+                // Initialize an array of the specific length
+                let mut hex = Vec::with_capacity(len);
+                unsafe { hex.set_len(len) };
+                // Compute the PBKDF2, based on the selected $hash
+                pbkdf2_::<Hmac<$hash>>(key, data, iterations, &mut hex.as_mut_slice());
+                // Return the array
+                hex
+            }};
         }
 
         match self {
@@ -142,16 +140,14 @@ impl Algorithm {
     #[must_use]
     pub fn hmac(self, key: &[u8], data: &[u8]) -> Vec<u8> {
         macro_rules! hmac_hash {
-            ($hash:ty) => {
-                {
-                    // Create the HMAC
-                    let mut mac = <Hmac<$hash>>::new_varkey(key).expect("Hmac creation failed");
-                    // Do the hashing
-                    mac.update(data);
-                    // Return the result
-                    mac.finalize().into_bytes().to_vec()
-                }
-            }
+            ($hash:ty) => {{
+                // Create the HMAC
+                let mut mac = <Hmac<$hash>>::new_varkey(key).expect("Hmac creation failed");
+                // Do the hashing
+                mac.update(data);
+                // Return the result
+                mac.finalize().into_bytes().to_vec()
+            }};
         }
         match self {
             Self::SHA1 => hmac_hash!(Sha1),
@@ -273,7 +269,7 @@ mod tests {
                 0x4b, 0x00, 0x79, 0x01, 0xb7, 0x65, 0x48, 0x9a, 0xbe, 0xad, 0x49, 0xd9, 0x26, 0xf7,
                 0x21, 0xd0, 0x65, 0xa4, 0x29, 0xc1
             ]
-                .to_vec()
+            .to_vec()
         );
         assert_eq!(
             Algorithm::SHA256.pbkdf2(b"password", b"salt", 4096),
@@ -282,7 +278,7 @@ mod tests {
                 0x4c, 0x8d, 0x96, 0x28, 0x93, 0xa0, 0x01, 0xce, 0x4e, 0x11, 0xa4, 0x96, 0x38, 0x73,
                 0xaa, 0x98, 0x13, 0x4a
             ]
-                .to_vec()
+            .to_vec()
         );
         assert_eq!(
             Algorithm::SHA384.pbkdf2(b"password", b"salt", 4096),
@@ -292,7 +288,7 @@ mod tests {
                 0x76, 0x4d, 0xeb, 0x3c, 0x30, 0x7b, 0x94, 0x85, 0x3f, 0xbe, 0x42, 0x4f, 0x64, 0x88,
                 0xc5, 0xf4, 0xf1, 0x28, 0x96, 0x26
             ]
-                .to_vec()
+            .to_vec()
         );
         assert_eq!(
             Algorithm::SHA512.pbkdf2(b"password", b"salt", 4096),
@@ -303,7 +299,7 @@ mod tests {
                 0x35, 0x98, 0x8c, 0xb3, 0x6b, 0x84, 0x37, 0x60, 0x60, 0xec, 0xd5, 0x32, 0xe0, 0x39,
                 0xb7, 0x42, 0xa2, 0x39, 0x43, 0x4a, 0xf2, 0xd5
             ]
-                .to_vec()
+            .to_vec()
         );
         assert_eq!(
             Algorithm::SHA3_256.pbkdf2(b"password", b"salt", 4096),
@@ -312,7 +308,7 @@ mod tests {
                 0xd2, 0x08, 0x07, 0x56, 0xb9, 0xfb, 0x38, 0xd7, 0x1b, 0x5d, 0x7e, 0xf4, 0x47, 0xfa,
                 0x22, 0x54, 0xaf, 0x61
             ]
-                .to_vec()
+            .to_vec()
         );
         assert_eq!(
             Algorithm::SHA3_384.pbkdf2(b"password", b"salt", 4096),
@@ -322,7 +318,7 @@ mod tests {
                 0x8e, 0x61, 0x4d, 0x01, 0x79, 0x7d, 0x3d, 0x5a, 0xc4, 0x40, 0x43, 0x5f, 0x00, 0x20,
                 0x9c, 0xae, 0x87, 0x23, 0xc5, 0x8c
             ]
-                .to_vec()
+            .to_vec()
         );
         assert_eq!(
             Algorithm::SHA3_512.pbkdf2(b"password", b"salt", 4096),
@@ -333,7 +329,7 @@ mod tests {
                 0xe5, 0x34, 0xff, 0x44, 0xb8, 0x17, 0x15, 0x9d, 0xdc, 0xd3, 0xbd, 0xce, 0x33, 0x73,
                 0x54, 0x11, 0x86, 0xb7, 0x27, 0x34, 0x02, 0x31
             ]
-                .to_vec()
+            .to_vec()
         );
     }
 }

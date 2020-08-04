@@ -2,20 +2,11 @@
 
 use core::fmt;
 
-use hmac::{Hmac, Mac, NewMac};
+use hmac::{digest::FixedOutput, digest::generic_array::typenum::Unsigned, Hmac, Mac, NewMac};
+use pbkdf2::pbkdf2 as pbkdf2_;
 use sha1::Sha1;
 use sha2::{Sha256, Sha384, Sha512};
 use sha3::{Sha3_256, Sha3_384, Sha3_512};
-
-use pbkdf2::pbkdf2;
-
-type HmacSha1 = Hmac<Sha1>;
-type HmacSha256 = Hmac<Sha256>;
-type HmacSha384 = Hmac<Sha384>;
-type HmacSha512 = Hmac<Sha512>;
-type HmacSha3_256 = Hmac<Sha3_256>;
-type HmacSha3_384 = Hmac<Sha3_384>;
-type HmacSha3_512 = Hmac<Sha3_512>;
 
 /// Selects the hash algorithm to use in PBKDF or HMAC.
 #[derive(PartialEq, Eq, Copy, Clone, Debug)]
@@ -94,42 +85,30 @@ impl Algorithm {
     /// ```
     #[must_use]
     pub fn pbkdf2(self, key: &[u8], data: &[u8], iterations: u32) -> Vec<u8> {
+        macro_rules! pbkdf2_hash {
+            ($hash:ty) => {
+                {
+                    // Length of the output array, based on $hash specified
+                    let len = <$hash as FixedOutput>::OutputSize::to_usize();
+                    // Initialize an array of the specific length
+                    let mut hex = Vec::with_capacity(len);
+                    unsafe { hex.set_len(len) };
+                    // Compute the PBKDF2, based on the selected $hash
+                    pbkdf2_::<Hmac<$hash>>(key, data, iterations, &mut hex.as_mut_slice());
+                    // Return the array
+                    hex
+                }
+            }
+        }
+
         match self {
-            Self::SHA1 => {
-                let mut hex = [0; 20];
-                pbkdf2::<HmacSha1>(key, data, iterations, &mut hex);
-                hex.to_vec()
-            }
-            Self::SHA256 => {
-                let mut hex = [0; 32];
-                pbkdf2::<HmacSha256>(key, data, iterations, &mut hex);
-                hex.to_vec()
-            }
-            Self::SHA384 => {
-                let mut hex = [0; 48];
-                pbkdf2::<HmacSha384>(key, data, iterations, &mut hex);
-                hex.to_vec()
-            }
-            Self::SHA512 => {
-                let mut hex = [0; 64];
-                pbkdf2::<HmacSha512>(key, data, iterations, &mut hex);
-                hex.to_vec()
-            }
-            Self::SHA3_256 => {
-                let mut hex = [0; 32];
-                pbkdf2::<HmacSha3_256>(key, data, iterations, &mut hex);
-                hex.to_vec()
-            }
-            Self::SHA3_384 => {
-                let mut hex = [0; 48];
-                pbkdf2::<HmacSha3_384>(key, data, iterations, &mut hex);
-                hex.to_vec()
-            }
-            Self::SHA3_512 => {
-                let mut hex = [0; 64];
-                pbkdf2::<HmacSha3_512>(key, data, iterations, &mut hex);
-                hex.to_vec()
-            }
+            Self::SHA1 => pbkdf2_hash!(Sha1),
+            Self::SHA256 => pbkdf2_hash!(Sha256),
+            Self::SHA384 => pbkdf2_hash!(Sha384),
+            Self::SHA512 => pbkdf2_hash!(Sha512),
+            Self::SHA3_256 => pbkdf2_hash!(Sha3_256),
+            Self::SHA3_384 => pbkdf2_hash!(Sha3_384),
+            Self::SHA3_512 => pbkdf2_hash!(Sha3_512),
         }
     }
 
@@ -162,56 +141,26 @@ impl Algorithm {
     /// ```
     #[must_use]
     pub fn hmac(self, key: &[u8], data: &[u8]) -> Vec<u8> {
+        macro_rules! hmac_hash {
+            ($hash:ty) => {
+                {
+                    // Create the HMAC
+                    let mut mac = <Hmac<$hash>>::new_varkey(key).expect("Hmac creation failed");
+                    // Do the hashing
+                    mac.update(data);
+                    // Return the result
+                    mac.finalize().into_bytes().to_vec()
+                }
+            }
+        }
         match self {
-            Self::SHA1 => {
-                // Create the HMAC
-                let mut mac = HmacSha1::new_varkey(key).expect("Hmac creation failed");
-                // Do the hashing
-                mac.update(data);
-                mac.finalize().into_bytes().to_vec()
-            }
-            Self::SHA256 => {
-                // Create the HMAC
-                let mut mac = HmacSha256::new_varkey(key).expect("Hmac creation failed");
-                // Do the hashing
-                mac.update(data);
-                mac.finalize().into_bytes().to_vec()
-            }
-            Self::SHA384 => {
-                // Create the HMAC
-                let mut mac = HmacSha384::new_varkey(key).expect("Hmac creation failed");
-                // Do the hashing
-                mac.update(data);
-                mac.finalize().into_bytes().to_vec()
-            }
-            Self::SHA512 => {
-                // Create the HMAC
-                let mut mac = HmacSha512::new_varkey(key).expect("Hmac creation failed");
-                // Do the hashing
-                mac.update(data);
-                mac.finalize().into_bytes().to_vec()
-            }
-            Self::SHA3_256 => {
-                // Create the HMAC
-                let mut mac = HmacSha3_256::new_varkey(key).expect("Hmac creation failed");
-                // Do the hashing
-                mac.update(data);
-                mac.finalize().into_bytes().to_vec()
-            }
-            Self::SHA3_384 => {
-                // Create the HMAC
-                let mut mac = HmacSha3_384::new_varkey(key).expect("Hmac creation failed");
-                // Do the hashing
-                mac.update(data);
-                mac.finalize().into_bytes().to_vec()
-            }
-            Self::SHA3_512 => {
-                // Create the HMAC
-                let mut mac = HmacSha3_512::new_varkey(key).expect("Hmac creation failed");
-                // Do the hashing
-                mac.update(data);
-                mac.finalize().into_bytes().to_vec()
-            }
+            Self::SHA1 => hmac_hash!(Sha1),
+            Self::SHA256 => hmac_hash!(Sha256),
+            Self::SHA384 => hmac_hash!(Sha384),
+            Self::SHA512 => hmac_hash!(Sha512),
+            Self::SHA3_256 => hmac_hash!(Sha3_256),
+            Self::SHA3_384 => hmac_hash!(Sha3_384),
+            Self::SHA3_512 => hmac_hash!(Sha3_512),
         }
     }
 }

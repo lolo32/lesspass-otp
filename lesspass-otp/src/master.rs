@@ -1,25 +1,25 @@
 use crate::{Algorithm, LessPassError};
 
-#[derive(Debug)]
-pub struct Master<'a> {
-    master: &'a [u8],
+#[derive(Debug, Clone)]
+pub struct Master {
+    master: Vec<u8>,
     algorithm: Algorithm,
 }
 
-impl<'a> Master<'a> {
-    pub fn new(master: &'a str, algorithm: Algorithm) -> Result<Self, LessPassError> {
+impl Master {
+    pub fn new(master: &str, algorithm: Algorithm) -> crate::Result<Self> {
         if algorithm == Algorithm::SHA1 {
             Err(LessPassError::UnsupportedAlgorithm)
         } else {
             Ok(Self {
-                master: master.as_bytes(),
+                master: master.as_bytes().to_vec(),
                 algorithm,
             })
         }
     }
 
     pub fn fingerprint(&self, salt: &[u8]) -> Vec<u8> {
-        self.algorithm.hmac(self.bytes(), salt)
+        self.algorithm.hmac(&self.bytes(), salt)
     }
 
     pub const fn get_algorithm(&self) -> Algorithm {
@@ -27,8 +27,8 @@ impl<'a> Master<'a> {
     }
 
     #[inline]
-    pub const fn bytes(&self) -> &'a [u8] {
-        self.master
+    pub const fn bytes(&self) -> &Vec<u8> {
+        &self.master
     }
 }
 

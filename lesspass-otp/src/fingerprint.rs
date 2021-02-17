@@ -64,6 +64,14 @@ fn get_icon(icon: &str) -> &'static str {
 }
 
 type ColorIcon = (&'static str, &'static str);
+
+/// Representation of the fingerprint.
+///
+/// This is a 3 array of tuples, which the first element is the color, the second an
+/// icon from _font-awesome_.
+///
+/// This representation should be publicly displayed to the user to verify his
+/// master password.
 pub type Fingerprint = [ColorIcon; 3];
 
 pub fn get_fingerprint(fingerprint: &str) -> Fingerprint {

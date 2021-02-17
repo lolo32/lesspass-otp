@@ -175,6 +175,44 @@ impl fmt::Display for Algorithm {
     }
 }
 
+#[cfg(feature = "serde")]
+impl serde::Serialize for Algorithm {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        // Note: do not change the serialization format, or it may break
+        // forward and backward compatibility of serialized data!
+        self.to_string().serialize(serializer)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for Algorithm {
+    fn deserialize<D>(deserializer: D) -> Result<Self, <D as serde::Deserializer<'de>>::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::Error;
+        use serde::de::Unexpected;
+
+        let algo: String = serde::Deserialize::deserialize(deserializer)?;
+        match algo.as_str() {
+            "Sha1" => Ok(Algorithm::SHA1),
+            "Sha2-256" => Ok(Algorithm::SHA256),
+            "Sha2-384" => Ok(Algorithm::SHA384),
+            "Sha2-512" => Ok(Algorithm::SHA512),
+            "Sha3-256" => Ok(Algorithm::SHA3_256),
+            "Sha3-384" => Ok(Algorithm::SHA3_384),
+            "Sha3-512" => Ok(Algorithm::SHA3_512),
+            _ => Err(D::Error::invalid_value(
+                Unexpected::Str(algo.as_str()),
+                &"an algorithm of Sha1, Sha2-256, Sha2-384, Sha2-512, Sha3-256, Sha3-384, or Sha3-512",
+            )),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

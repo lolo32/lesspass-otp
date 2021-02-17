@@ -53,7 +53,7 @@ pub enum Symbols {
 }
 
 /// Configure the characters type to use in the resulting password.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct CharacterSet {
     serials: Vec<Set>,
     set: String,

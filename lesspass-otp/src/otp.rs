@@ -1,4 +1,4 @@
-use crate::{Algorithm, LessPassError};
+use crate::{Algorithm, LessPassError, Result};
 
 /// Decode a base32 encoded string.
 ///
@@ -24,7 +24,7 @@ use crate::{Algorithm, LessPassError};
 /// Return [`LessPassError::InvalidBase32`] if the `input` is not a valid base32
 /// string.
 #[inline]
-pub fn decode_base32(input: &str) -> Result<Vec<u8>, LessPassError> {
+pub fn decode_base32(input: &str) -> Result<Vec<u8>> {
     let encoded = input
         .trim_end_matches(|c| c == '=')
         .replace("-", "")
@@ -35,6 +35,12 @@ pub fn decode_base32(input: &str) -> Result<Vec<u8>, LessPassError> {
         Some(val) => Ok(val),
         None => Err(LessPassError::InvalidBase32),
     }
+}
+
+/// TODO: Writing doc
+pub fn encode_base32(input: &[u8]) -> String {
+    let alpha = base32::Alphabet::RFC4648 { padding: false };
+    base32::encode(alpha, input)
 }
 
 /// Deals with the OTP authentication.
@@ -112,7 +118,7 @@ impl Otp {
         algorithm: Option<Algorithm>,
         period: Option<u32>,
         timestamp: Option<u64>,
-    ) -> Result<Self, LessPassError> {
+    ) -> Result<Self> {
         match (algorithm, digits) {
             // Allow valid algorithms
             (None, i)

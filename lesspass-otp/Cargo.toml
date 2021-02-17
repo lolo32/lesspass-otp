@@ -1,0 +1,52 @@
+[package]
+name = "lesspass-otp"
+version = "0.1.0"
+authors = ["Lolo_32 <lol.b@free.fr>"]
+edition = "2018"
+description = "Generate password for any site, with only a master password, a site name, a login and a counter using Lesspass algorithm. Generate TOTP or HOTP too."
+keywords = ["lesspass", "totp", "hotp"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[badges]
+codecov = { repository = "lolo32/lesspass-otp", branch = "master", service = "github" }
+
+[features]
+default = ["std_time"]
+std_time = []
+
+[dependencies.base32]
+version = "0.4.0"
+
+[dependencies.hmac]
+version  = "0.10.1"
+
+[dependencies.lazy_static]
+version  = "1.4.0"
+
+[dependencies.num-bigint]
+version  = "0.3.1"
+
+[dependencies.num-integer]
+version  = "0.1.44"
+
+[dependencies.num-traits]
+version  = "0.2.14"
+
+[dependencies.pbkdf2]
+version = "0.7.3"
+default-features = false
+
+[dependencies.sha-1]
+version  = "0.9.4"
+
+[dependencies.sha2]
+version = "0.9.3"
+default-features = false
+
+[dependencies.sha3]
+version  = "0.9.1"
+
+[dependencies.serde]
+version = "1.0.115"
+optional = true

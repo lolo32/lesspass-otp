@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Yew Sample App</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+    <link rel="stylesheet" href="https://www.w3schools.com/lib/w3-theme-light-blue.css">
+    <style>
+        .crop{
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+        .pointer{
+            cursor: pointer;
+        }
+        .wrap {
+            word-wrap: break-word;
+        }
+        .topnav {
+            z-index: 2;
+            position: -webkit-sticky;
+            position: sticky;
+            top: 0;
+        }
+        .credential header {
+            height: 2.5em;
+        }
+        .credential header img {
+            height: 2em;
+        }
+        .credential-options button {
+            margin: auto 8px auto 8px;
+        }
+    </style>
+</head>
+<body>
+<div id="app"></div>
+<script type="module">
+    import init from "./wasm.js"
+
+    init()
+</script>
+</body>
+</html>

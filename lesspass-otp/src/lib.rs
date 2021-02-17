@@ -111,9 +111,9 @@ use num_bigint::BigUint;
 pub use crate::algo::Algorithm;
 use crate::entropy::Entropy;
 pub use crate::errors::LessPassError;
-use crate::fingerprint::Fingerprint;
+pub use crate::fingerprint::Fingerprint;
 use crate::master::Master;
-pub use crate::otp::{decode_base32, Otp};
+pub use crate::otp::{decode_base32, encode_base32, Otp};
 pub use crate::settings::Settings;
 use std::ops::Sub;
 
@@ -128,17 +128,20 @@ mod master;
 mod otp;
 mod settings;
 
+/// Result type with integrated error from the crate
+pub type Result<T> = core::result::Result<T, LessPassError>;
+
 /// The main struct, this is where we define the master password.
-#[derive(Debug)]
-pub struct LessPass<'a> {
-    master: Master<'a>,
+#[derive(Debug, Clone)]
+pub struct LessPass {
+    master: Master,
 }
 
 lazy_static! {
     static ref BIGINT1: BigUint = BigUint::from(1_u64);
 }
 
-impl<'a> LessPass<'a> {
+impl LessPass {
     /// Define master password to be used with every password.
     ///
     /// The algorithm is the one used to generate the fingerprint, and the one
@@ -158,7 +161,7 @@ impl<'a> LessPass<'a> {
     ///
     /// Could return a [`LessPassError::UnsupportedAlgorithm`] if the provided algorithm
     /// is not supported.
-    pub fn new(master: &'a str, algorithm: Algorithm) -> Result<Self, LessPassError> {
+    pub fn new(master: &str, algorithm: Algorithm) -> Result<Self> {
         Ok(Self {
             master: Master::new(master, algorithm)?,
         })
@@ -198,7 +201,7 @@ impl<'a> LessPass<'a> {
         login: &str,
         counter: u32,
         settings: &Settings,
-    ) -> Result<String, LessPassError> {
+    ) -> Result<String> {
         // Validate parameters settings
         let algorithm = settings
             .get_algorithm()
@@ -279,6 +282,23 @@ impl<'a> LessPass<'a> {
         })
     }
 
+    /// -
+    pub fn password_with_algorithm_from_length(
+        &self,
+        site: &str,
+        login: &str,
+        counter: u32,
+        settings: &Settings,
+    ) -> Result<String> {
+        let mut settings = settings.clone();
+        settings.set_algorithm(match settings.get_password_len() {
+            l if l <= 35 => Algorithm::SHA256,
+            l if l <= 52 => Algorithm::SHA384,
+            _ => Algorithm::SHA512,
+        });
+        self.password(site, login, counter, &settings)
+    }
+
     /// Decode a HOTP secret from aa previous encoded secret, or encode a clear one.
     ///
     /// # Note
@@ -346,12 +366,7 @@ impl<'a> LessPass<'a> {
     ///
     /// Return the error [`LessPassError::InvalidLength`] if the secret is 0 or more than
     /// 64 characters length.
-    pub fn secret_hotp(
-        &self,
-        site: &str,
-        login: &str,
-        secret: &[u8],
-    ) -> Result<Vec<u8>, LessPassError> {
+    pub fn secret_hotp(&self, site: &str, login: &str, secret: &[u8]) -> Result<Vec<u8>> {
         self.secret_otp(b"hotp", site.as_bytes(), login.as_bytes(), secret)
     }
     /// Decode a TOTP secret from aa previous encoded secret, or encode a clear one.
@@ -421,12 +436,7 @@ impl<'a> LessPass<'a> {
     ///
     /// Return the error [`LessPassError::InvalidLength`] if the secret is 0 or more than
     /// 64 characters length.
-    pub fn secret_totp(
-        &self,
-        site: &str,
-        login: &str,
-        secret: &[u8],
-    ) -> Result<Vec<u8>, LessPassError> {
+    pub fn secret_totp(&self, site: &str, login: &str, secret: &[u8]) -> Result<Vec<u8>> {
         self.secret_otp(b"totp", site.as_bytes(), login.as_bytes(), secret)
     }
     fn secret_otp(
@@ -435,7 +445,7 @@ impl<'a> LessPass<'a> {
         site: &[u8],
         login: &[u8],
         secret: &[u8],
-    ) -> Result<Vec<u8>, LessPassError> {
+    ) -> Result<Vec<u8>> {
         let (algorithm, encrypt) = match secret.len() {
             i if (1..32).contains(&i) => (Algorithm::SHA256, true),
             i if i == 32 => (Algorithm::SHA256, false),

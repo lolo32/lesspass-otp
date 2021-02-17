@@ -13,7 +13,7 @@ use crate::Algorithm;
 /// // Create for a new password of 20 characters length, lower and uppercase characters and numbers
 /// let settings = Settings::new(20, LowerCase::Using, UpperCase::Using, Numbers::Using, Symbols::NotUsing);
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Settings {
     iterations: Option<u32>,
     pass_len: u8,
@@ -69,6 +69,10 @@ impl Settings {
     pub const fn get_password_len(&self) -> u8 {
         self.pass_len
     }
+    /// Change password length.
+    pub fn set_password_len(&mut self, length: u8) {
+        self.pass_len = length;
+    }
 
     /// Retrieve configured [`CharacterSet`].
     #[must_use]
@@ -118,6 +122,77 @@ impl Default for Settings {
     }
 }
 
+#[cfg(feature = "serde")]
+impl serde::Serialize for Settings {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use crate::charset::Set;
+
+        // Note: do not change the serialization format, or it may break
+        // forward and backward compatibility of serialized data!
+        let serials = self.get_characterset().get_serials();
+        let mut serials_tuple = (false, false, false, false);
+        for serial in serials {
+            match serial {
+                Set::Lowercase => serials_tuple.0 = true,
+                Set::Uppercase => serials_tuple.1 = true,
+                Set::Numbers => serials_tuple.2 = true,
+                Set::Symbols => serials_tuple.3 = true,
+            }
+        }
+        (
+            self.iterations,
+            self.pass_len,
+            self.algorithm,
+            serials_tuple,
+        )
+            .serialize(serializer)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for Settings {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        type SerdeSetting = (Option<u32>, u8, Option<Algorithm>, (bool, bool, bool, bool));
+        let (iterations, pass_len, algorithm, serials): SerdeSetting =
+            serde::Deserialize::deserialize(deserializer)?;
+
+        let lower = if serials.0 {
+            LowerCase::Using
+        } else {
+            LowerCase::NotUsing
+        };
+        let upper = if serials.1 {
+            UpperCase::Using
+        } else {
+            UpperCase::NotUsing
+        };
+        let num = if serials.2 {
+            Numbers::Using
+        } else {
+            Numbers::NotUsing
+        };
+        let sym = if serials.3 {
+            Symbols::Using
+        } else {
+            Symbols::NotUsing
+        };
+
+        let mut settings = Self::new(pass_len, lower, upper, num, sym);
+        if let Some(algo) = algorithm {
+            settings.set_algorithm(algo);
+        }
+        if let Some(iter_) = iterations {
+            settings.set_iterations(iter_);
+        }
+        Ok(settings)
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;

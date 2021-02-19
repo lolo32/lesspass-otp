@@ -53,16 +53,21 @@ lazy_static! {
     ];
 }
 
+/// Return the color, based on string passed in parameters
 fn get_color(color: &str) -> &'static str {
-    let idx = u64::from_str_radix(color, 16).expect("color was not an hex value") % 14;
-    COLORS[idx as usize]
+    let idx =
+        u64::from_str_radix(color, 16).expect("color was not an hex value") as usize % COLORS.len();
+    COLORS[idx]
 }
 
+/// Return an icon, based on string passed in parameters
 fn get_icon(icon: &str) -> &'static str {
-    let idx = u64::from_str_radix(icon, 16).expect("icon was not an hex value") % 46;
-    ICONS[idx as usize]
+    let idx =
+        u64::from_str_radix(icon, 16).expect("icon was not an hex value") as usize % ICONS.len();
+    ICONS[idx]
 }
 
+/// Define a tuple representing an icon for the fingerprint: `(color, icon)`
 type ColorIcon = (&'static str, &'static str);
 
 /// Representation of the fingerprint.

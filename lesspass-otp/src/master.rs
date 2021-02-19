@@ -1,12 +1,16 @@
 use crate::{Algorithm, LessPassError};
 
+/// Master password parameters
 #[derive(Debug, Clone)]
 pub struct Master {
+    /// The password in array of byte
     master: Vec<u8>,
+    /// The algorithm to use
     algorithm: Algorithm,
 }
 
 impl Master {
+    /// Store the password and the algorithm
     pub fn new(master: &str, algorithm: Algorithm) -> crate::Result<Self> {
         if algorithm == Algorithm::SHA1 {
             Err(LessPassError::UnsupportedAlgorithm)
@@ -18,32 +22,35 @@ impl Master {
         }
     }
 
+    /// Return the fingerprint of the password
     pub fn fingerprint(&self, salt: &[u8]) -> Vec<u8> {
-        self.algorithm.hmac(&self.bytes(), salt)
+        self.algorithm.hmac(self.bytes(), salt)
     }
 
+    /// Return the algorithm configured
     pub const fn get_algorithm(&self) -> Algorithm {
         self.algorithm
     }
 
+    /// Return the password
     #[inline]
     pub const fn bytes(&self) -> &Vec<u8> {
         &self.master
     }
 }
 
-/*
 // TODO: Must implement Drop
-
-impl Drop for Master<'_> {
+impl Drop for Master {
     fn drop(&mut self) {
-        let len = self.master.len();
-        let bytes = self.master.as_mut();
-        for i in 0..len {
-            bytes[i] = 0;
+        #[allow(unsafe_code)]
+        unsafe {
+            // drop the data
+            for x in &mut self.master {
+                std::ptr::drop_in_place(x);
+            }
         }
     }
-}*/
+}
 
 #[cfg(test)]
 mod tests {
@@ -53,14 +60,17 @@ mod tests {
     fn does_not_allow_sha1() {
         let master = Master::new("", Algorithm::SHA1);
         assert!(master.is_err());
-        assert_eq!(master.err().unwrap(), LessPassError::UnsupportedAlgorithm);
+        assert_eq!(
+            master.err().expect("error"),
+            LessPassError::UnsupportedAlgorithm
+        );
     }
 
     #[test]
     fn passwordless_fingerprint() {
         // For keys with messages smaller than SHA256's block size (64
         // bytes), the key is padded with zeros.
-        let master = Master::new("", Algorithm::SHA256).unwrap();
+        let master = Master::new("", Algorithm::SHA256).expect("master password");
         assert_eq!(
             master.fingerprint(b""),
             &[
@@ -74,7 +84,7 @@ mod tests {
     fn password_foo_fingerprint() {
         // For keys with messages smaller than SHA256's block size (64
         // bytes), the key is padded with zeros.
-        let master = Master::new("foo", Algorithm::SHA256).unwrap();
+        let master = Master::new("foo", Algorithm::SHA256).expect("master password");
         assert_eq!(
             master.fingerprint(b""),
             &[
@@ -91,7 +101,7 @@ mod tests {
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
             Algorithm::SHA256,
         )
-        .unwrap();
+        .expect("master pasword");
         assert_eq!(
             master.fingerprint(b""),
             &[
@@ -104,7 +114,7 @@ mod tests {
     #[test]
     fn password_95_bytes_length_fingerprint() {
         // It is larger, it is hashed first.
-        let master = Master::new("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdeflarger than SHA256's block size", Algorithm::SHA256).unwrap();
+        let master = Master::new("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdeflarger than SHA256's block size", Algorithm::SHA256).expect("master password");
         assert_eq!(
             master.fingerprint(b""),
             &[
@@ -116,7 +126,7 @@ mod tests {
 
     #[test]
     fn fingerprint_with_salt() {
-        let master = Master::new("password", Algorithm::SHA256).unwrap();
+        let master = Master::new("password", Algorithm::SHA256).expect("master password");
         assert_eq!(
             master.fingerprint(b"salt"),
             &[

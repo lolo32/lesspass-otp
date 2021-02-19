@@ -91,7 +91,11 @@ impl Algorithm {
                 let len = <$hash as FixedOutput>::OutputSize::to_usize();
                 // Initialize an array of the specific length
                 let mut hex = Vec::with_capacity(len);
-                unsafe { hex.set_len(len) };
+                // Unsafe here to speedup PBKDF2 computation
+                #[allow(unsafe_code)]
+                unsafe {
+                    hex.set_len(len)
+                };
                 // Compute the PBKDF2, based on the selected $hash
                 pbkdf2_::<Hmac<$hash>>(key, data, iterations, &mut hex.as_mut_slice());
                 // Return the array
@@ -163,7 +167,7 @@ impl Algorithm {
 
 impl fmt::Display for Algorithm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
+        f.write_str(match *self {
             Self::SHA1 => "Sha1",
             Self::SHA256 => "Sha2-256",
             Self::SHA384 => "Sha2-384",
@@ -198,13 +202,13 @@ impl<'de> serde::Deserialize<'de> for Algorithm {
 
         let algo: String = serde::Deserialize::deserialize(deserializer)?;
         match algo.as_str() {
-            "Sha1" => Ok(Algorithm::SHA1),
-            "Sha2-256" => Ok(Algorithm::SHA256),
-            "Sha2-384" => Ok(Algorithm::SHA384),
-            "Sha2-512" => Ok(Algorithm::SHA512),
-            "Sha3-256" => Ok(Algorithm::SHA3_256),
-            "Sha3-384" => Ok(Algorithm::SHA3_384),
-            "Sha3-512" => Ok(Algorithm::SHA3_512),
+            "Sha1" => Ok(Self::SHA1),
+            "Sha2-256" => Ok(Self::SHA256),
+            "Sha2-384" => Ok(Self::SHA384),
+            "Sha2-512" => Ok(Self::SHA512),
+            "Sha3-256" => Ok(Self::SHA3_256),
+            "Sha3-384" => Ok(Self::SHA3_384),
+            "Sha3-512" => Ok(Self::SHA3_512),
             _ => Err(D::Error::invalid_value(
                 Unexpected::Str(algo.as_str()),
                 &"an algorithm of Sha1, Sha2-256, Sha2-384, Sha2-512, Sha3-256, Sha3-384, or Sha3-512",
@@ -369,5 +373,24 @@ mod tests {
             ]
             .to_vec()
         );
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn serde() {
+        use serde_test::{assert_tokens, Token};
+
+        let a = Algorithm::SHA256;
+        assert_tokens(&a, &[Token::Str("Sha2-256")]);
+        let a = Algorithm::SHA384;
+        assert_tokens(&a, &[Token::Str("Sha2-384")]);
+        let a = Algorithm::SHA512;
+        assert_tokens(&a, &[Token::Str("Sha2-512")]);
+        let a = Algorithm::SHA3_256;
+        assert_tokens(&a, &[Token::Str("Sha3-256")]);
+        let a = Algorithm::SHA3_384;
+        assert_tokens(&a, &[Token::Str("Sha3-384")]);
+        let a = Algorithm::SHA3_512;
+        assert_tokens(&a, &[Token::Str("Sha3-512")]);
     }
 }

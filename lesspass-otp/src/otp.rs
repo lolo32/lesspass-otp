@@ -1,4 +1,4 @@
-use crate::{Algorithm, LessPassError, Result};
+use crate::{Algorithm, LessPassError};
 
 /// Decode a base32 encoded string.
 ///
@@ -24,7 +24,7 @@ use crate::{Algorithm, LessPassError, Result};
 /// Return [`LessPassError::InvalidBase32`] if the `input` is not a valid base32
 /// string.
 #[inline]
-pub fn decode_base32(input: &str) -> Result<Vec<u8>> {
+pub fn decode_base32(input: &str) -> crate::Result<Vec<u8>> {
     let encoded = input
         .trim_end_matches(|c| c == '=')
         .replace("-", "")
@@ -38,6 +38,7 @@ pub fn decode_base32(input: &str) -> Result<Vec<u8>> {
 }
 
 /// TODO: Writing doc
+#[must_use]
 pub fn encode_base32(input: &[u8]) -> String {
     let alpha = base32::Alphabet::RFC4648 { padding: false };
     base32::encode(alpha, input)
@@ -71,15 +72,15 @@ pub fn encode_base32(input: &[u8]) -> String {
 /// ```
 #[derive(Debug)]
 pub struct Otp {
-    // Secret to use
+    /// Secret to use
     secret: Vec<u8>,
-    // Algorithm, must be Sha1 (default), Sha2-256 or Sha2-512
+    /// Algorithm, must be Sha1 (default), Sha2-256 or Sha2-512
     algorithm: Algorithm,
-    // Number of digits, 6 (default) or 8
+    /// Number of digits, 6 (default) or 8
     digits: u8,
-    // Period of validity of the token (30 secs by default)
+    /// Period of validity of the token (30 secs by default)
     period: u32,
-    // Timestamp delta for TOTP (0 by default)
+    /// Timestamp delta for TOTP (0 by default)
     timestamp: u64,
 }
 
@@ -118,7 +119,7 @@ impl Otp {
         algorithm: Option<Algorithm>,
         period: Option<u32>,
         timestamp: Option<u64>,
-    ) -> Result<Self> {
+    ) -> crate::Result<Self> {
         match (algorithm, digits) {
             // Allow valid algorithms
             (None, i)
@@ -129,7 +130,7 @@ impl Otp {
             {
                 Ok(Self {
                     secret: secret.to_vec(),
-                    algorithm: algorithm.unwrap_or_else(|| Algorithm::SHA1),
+                    algorithm: algorithm.unwrap_or(Algorithm::SHA1),
                     digits,
                     period: period.unwrap_or(30).max(1),
                     timestamp: timestamp.unwrap_or(0),
@@ -153,7 +154,7 @@ impl Otp {
 
         let time = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
+            .expect("duration")
             .as_secs();
         self.totp_from_ts(time)
     }
@@ -172,10 +173,7 @@ impl Otp {
         let digest = self.algorithm.hmac(&self.secret, &counter.to_be_bytes());
 
         // Truncate
-        let off = (match digest.last() {
-            Some(byte) => byte,
-            None => unreachable!(),
-        } & 0xf) as usize;
+        let off = (digest.last().expect("last byte") & 0xf) as usize;
         let binary = (u64::from(digest[off]) & 0x7f) << 24
             | (u64::from(digest[off + 1]) & 0xff) << 16
             | (u64::from(digest[off + 2]) & 0xff) << 8
@@ -183,7 +181,7 @@ impl Otp {
         let binary = binary % (10_u64.pow(self.digits.into()));
 
         // Prepend with additional 0 to have digits length Token and convert it to String
-        format!("{:0>1$}", binary, self.digits.into())
+        format!("{:0>1$}", binary, self.digits as usize)
     }
 }
 
@@ -194,55 +192,75 @@ mod tests {
     #[test]
     fn base32_decoding() {
         let s = b"Hello world!";
-        assert_eq!(decode_base32("JBSWY3DPEB3W64TMMQQQ").unwrap(), s);
-        assert_eq!(decode_base32("JBSWY3DPEB3W64TMMQQQ==").unwrap(), s);
-        assert_eq!(decode_base32("JBSW Y3DP-EB3W 64TM-MQQQ").unwrap(), s);
+        assert_eq!(
+            decode_base32("JBSWY3DPEB3W64TMMQQQ").expect("binary string"),
+            s
+        );
+        assert_eq!(
+            decode_base32("JBSWY3DPEB3W64TMMQQQ==").expect("binary string"),
+            s
+        );
+        assert_eq!(
+            decode_base32("JBSW Y3DP-EB3W 64TM-MQQQ").expect("binary string"),
+            s
+        );
     }
 
     #[test]
     fn allow_only_available_algorithm() {
         // Valid algorithm
-        let valid = [Algorithm::SHA1, Algorithm::SHA256, Algorithm::SHA512];
-        for i in valid.iter() {
-            let fa2 = Otp::new(b"", 8, Some(*i), None, None);
-            assert!(fa2.is_ok());
+        {
+            let valid = [Algorithm::SHA1, Algorithm::SHA256, Algorithm::SHA512];
+            for i in &valid {
+                let fa2 = Otp::new(b"", 8, Some(*i), None, None);
+                assert!(fa2.is_ok());
+            }
         }
 
         // Invalid algorithm
-        let valid = [
-            Algorithm::SHA384,
-            Algorithm::SHA3_256,
-            Algorithm::SHA3_384,
-            Algorithm::SHA3_512,
-        ];
-        for i in valid.iter() {
-            let fa2 = Otp::new(b"", 8, Some(*i), None, None);
-            assert!(fa2.is_err());
-            assert_eq!(fa2.err().unwrap(), LessPassError::UnsupportedAlgorithm);
+        {
+            let valid = [
+                Algorithm::SHA384,
+                Algorithm::SHA3_256,
+                Algorithm::SHA3_384,
+                Algorithm::SHA3_512,
+            ];
+            for i in &valid {
+                let fa2 = Otp::new(b"", 8, Some(*i), None, None);
+                assert!(fa2.is_err());
+                assert_eq!(
+                    fa2.err().expect("error"),
+                    LessPassError::UnsupportedAlgorithm
+                );
+            }
         }
     }
 
     #[test]
     fn allow_only_valid_digits_length() {
         // Invalid length
-        let len_invalid = [1_u8, 2, 3, 4, 5, 10, 11, 12, 13, 14];
-        for i in len_invalid.iter() {
-            let fa2 = Otp::new(b"", *i, None, None, None);
-            assert!(fa2.is_err());
-            assert_eq!(fa2.err().unwrap(), LessPassError::InvalidLength);
+        {
+            let len_invalid = [1_u8, 2, 3, 4, 5, 10, 11, 12, 13, 14];
+            for i in &len_invalid {
+                let fa2 = Otp::new(b"", *i, None, None, None);
+                assert!(fa2.is_err());
+                assert_eq!(fa2.err().expect("error"), LessPassError::InvalidLength);
+            }
         }
 
         // Valid length
-        for i in 6_u8..=9 {
-            let fa2 = Otp::new(b"", i, None, None, None);
-            assert!(fa2.is_ok());
+        {
+            for i in 6_u8..=9 {
+                let fa2 = Otp::new(b"", i, None, None, None);
+                assert!(fa2.is_ok());
+            }
         }
     }
 
     #[test]
     fn tests_vectors_rfc_sha1_8chars() {
         let seed = b"12345678901234567890";
-        let t = Otp::new(seed, 8, None, None, None).unwrap();
+        let t = Otp::new(seed, 8, None, None, None).expect("otp");
         assert_eq!(t.totp_from_ts(59), "94287082");
         assert_eq!(t.totp_from_ts(1_111_111_109), "07081804");
         assert_eq!(t.totp_from_ts(1_111_111_111), "14050471");
@@ -254,7 +272,7 @@ mod tests {
     #[test]
     fn tests_vectors_rfc_sha256_8chars() {
         let seed = b"12345678901234567890123456789012";
-        let t = Otp::new(seed, 8, Some(Algorithm::SHA256), None, None).unwrap();
+        let t = Otp::new(seed, 8, Some(Algorithm::SHA256), None, None).expect("otp");
         assert_eq!(t.totp_from_ts(59), "46119246");
         assert_eq!(t.totp_from_ts(1_111_111_109), "68084774");
         assert_eq!(t.totp_from_ts(1_111_111_111), "67062674");
@@ -266,7 +284,7 @@ mod tests {
     #[test]
     fn tests_vectors_rfc_sha512_8chars() {
         let seed = b"1234567890123456789012345678901234567890123456789012345678901234";
-        let t = Otp::new(seed, 8, Some(Algorithm::SHA512), None, None).unwrap();
+        let t = Otp::new(seed, 8, Some(Algorithm::SHA512), None, None).expect("otp");
         assert_eq!(t.totp_from_ts(59), "90693936");
         assert_eq!(t.totp_from_ts(1_111_111_109), "25091201");
         assert_eq!(t.totp_from_ts(1_111_111_111), "99943326");
@@ -278,7 +296,7 @@ mod tests {
     #[test]
     fn tests_vectors_rfc_sha1_6chars() {
         let seed = b"12345678901234567890";
-        let t = Otp::new(seed, 6, None, None, None).unwrap();
+        let t = Otp::new(seed, 6, None, None, None).expect("otp");
         assert_eq!(t.hotp(0), "755224");
         assert_eq!(t.hotp(1), "287082");
         assert_eq!(t.hotp(2), "359152");
@@ -293,7 +311,7 @@ mod tests {
 
     #[test]
     fn totp() {
-        let t = Otp::new(b"1234567890", 9, None, None, None).unwrap();
+        let t = Otp::new(b"1234567890", 9, None, None, None).expect("otp");
         assert_eq!(t.totp().len(), 9);
     }
 }

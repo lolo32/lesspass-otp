@@ -1,4 +1,5 @@
 use core::fmt;
+use std::{str::Utf8Error, string::FromUtf8Error};
 
 use crate::Algorithm;
 
@@ -27,15 +28,18 @@ pub enum LessPassError {
 
     /// The provided string is not a valid base32 encoded string
     InvalidBase32,
+
+    /// The string is not UTF8 encoded
+    InvalidUtf8String(Utf8Error),
 }
 
 impl fmt::Display for LessPassError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
+        match *self {
             Self::PasswordTooShort(min, curr) =>
-                f.write_str(format!("Password length cannot be less than {} characters, it's {} length", min, curr).as_str()),
+                f.write_str(&format!("Password length cannot be less than {} characters, it's {} length", min, curr)),
             Self::PasswordTooLong(min, curr, algorithm) =>
-                f.write_str(format!("Password length cannot be more than {} characters if algorithm is {}. It's {} length.", min, algorithm, curr).as_str()),
+                f.write_str(&format!("Password length cannot be more than {} characters if algorithm is {}. It's {} length.", min, algorithm, curr)),
             Self::NoCharsetSelected =>
                 f.write_str("No charset selected to generate a password. Please use at least one."),
             Self::UnsupportedAlgorithm =>
@@ -44,7 +48,14 @@ impl fmt::Display for LessPassError {
                 f.write_str("The number of digits is not valid."),
             Self::InvalidBase32 =>
                 f.write_str("The provided string is not a valid base32 encoded string."),
+            Self::InvalidUtf8String(e) => f.write_str(&format!("The provided string is not a valid utf8 string: {:?}", e)),
         }
+    }
+}
+
+impl From<FromUtf8Error> for LessPassError {
+    fn from(e: FromUtf8Error) -> Self {
+        Self::InvalidUtf8String(e.utf8_error())
     }
 }
 
@@ -77,6 +88,13 @@ mod tests {
         assert_eq!(
             LessPassError::InvalidBase32.to_string(),
             "The provided string is not a valid base32 encoded string."
+        );
+
+        let str_error = String::from_utf8(vec![0, 159, 146, 150]);
+        assert!(str_error.is_err());
+        assert_eq!(
+            LessPassError::from(str_error.unwrap_err()).to_string(),
+            "The provided string is not a valid utf8 string: Utf8Error { valid_up_to: 1, error_len: Some(1) }"
         );
     }
 }

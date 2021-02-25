@@ -1,6 +1,6 @@
 use seed::{prelude::*, *};
 
-use super::Msg;
+use crate::msg::Msg;
 
 pub(crate) const CROP: &str = "crop";
 pub(crate) const POINTER: &str = "pointer";

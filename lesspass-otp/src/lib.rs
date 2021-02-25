@@ -2,14 +2,70 @@
 #![deny(missing_copy_implementations)]
 #![deny(missing_debug_implementations)]
 #![deny(trivial_numeric_casts)]
-//#![deny(unreachable_pub)]
-//#![deny(unsafe_code)]
+#![deny(unreachable_pub)]
+#![deny(unsafe_code)]
 #![deny(unused_extern_crates)]
 #![deny(unused_qualifications)]
 #![doc(
     test(no_crate_inject, attr(deny(warnings))),
     test(attr(allow(unused_variables))),
     html_no_source
+)]
+#![deny(
+    missing_copy_implementations,
+    missing_docs,
+    missing_debug_implementations,
+    single_use_lifetimes,
+    unsafe_code,
+    unused_extern_crates,
+    unused_import_braces,
+    unused_lifetimes,
+    unused_qualifications,
+    unused_results,
+    clippy::all,
+    clippy::pedantic,
+    clippy::nursery
+)]
+#![allow(clippy::cast_possible_truncation, clippy::redundant_pub_crate)]
+// Clippy rules in the `Restriction lints`
+#![deny(
+    clippy::clone_on_ref_ptr,
+    clippy::create_dir,
+    clippy::dbg_macro,
+    clippy::decimal_literal_representation,
+    clippy::else_if_without_else,
+    clippy::exit,
+    clippy::filetype_is_file,
+    clippy::float_arithmetic,
+    clippy::float_cmp_const,
+    clippy::get_unwrap,
+    clippy::inline_asm_x86_att_syntax,
+    clippy::inline_asm_x86_intel_syntax,
+    clippy::let_underscore_must_use,
+    clippy::lossy_float_literal,
+    clippy::map_err_ignore,
+    clippy::mem_forget,
+    clippy::missing_docs_in_private_items,
+    clippy::modulo_arithmetic,
+    clippy::multiple_inherent_impl,
+    clippy::panic,
+    clippy::panic_in_result_fn,
+    clippy::pattern_type_mismatch,
+    clippy::print_stderr,
+    clippy::print_stdout,
+    clippy::rc_buffer,
+    clippy::rest_pat_in_fully_bound_structs,
+    clippy::shadow_same,
+    clippy::str_to_string,
+    clippy::string_to_string,
+    clippy::todo,
+    clippy::unimplemented,
+    clippy::unneeded_field_pattern,
+    clippy::unwrap_used,
+    clippy::use_debug,
+    clippy::verbose_file_reads,
+    clippy::wildcard_enum_match_arm,
+    clippy::wrong_pub_self_convention
 )]
 
 //! This crate can be used to generate password for any site, with only a master password,
@@ -28,7 +84,7 @@
 //!
 //! ```
 //! use lesspass_otp::{Algorithm, LessPass, Otp, Settings};
-//! use lesspass_otp::charset::{LowerCase, Numbers, Symbols, UpperCase};
+//! use lesspass_otp::charset::CharacterSet;
 //!
 //! // ------------------
 //! // Initialise the library
@@ -48,13 +104,7 @@
 //! // 16 chars, and lower + upper + number + symbol
 //! let settings = Settings::default();
 //! // 20 chars, and lower + upper + number
-//! let settings = Settings::new(
-//!     20,
-//!     LowerCase::Using,
-//!     UpperCase::Using,
-//!     Numbers::Using,
-//!     Symbols::NotUsing,
-//! );
+//! let settings = Settings::new(20, CharacterSet::LowercaseUppercaseNumbers);
 //!
 //! // ------------------
 //! // Generate a password
@@ -103,29 +153,41 @@
 //! # Ok::<(), lesspass_otp::LessPassError>(())
 //! ```
 
+use std::ops::Sub;
+
 #[macro_use]
 extern crate lazy_static;
 
 use num_bigint::BigUint;
 
-pub use crate::algo::Algorithm;
-use crate::entropy::Entropy;
-pub use crate::errors::LessPassError;
-pub use crate::fingerprint::Fingerprint;
 use crate::master::Master;
-pub use crate::otp::{decode_base32, encode_base32, Otp};
-pub use crate::settings::Settings;
-use std::ops::Sub;
+pub use crate::{
+    algo::Algorithm,
+    charset::{CharUse, CharacterSet, Set},
+    entropy::Entropy,
+    errors::LessPassError,
+    fingerprint::Fingerprint,
+    otp::{decode_base32, encode_base32, Otp},
+    settings::Settings,
+};
 
+/// Algorythm implementations
 mod algo;
 /// Settings to define charset.
 pub mod charset;
+/// Entropy generator
 mod entropy;
+/// Errors
 mod errors;
+/// Password fingerprint
 mod fingerprint;
+/// Hexadecimal
 mod hex;
+/// Master password
 mod master;
+/// TOTP and HTOP
 mod otp;
+/// Settings
 mod settings;
 
 /// Result type with integrated error from the crate
@@ -134,6 +196,7 @@ pub type Result<T> = core::result::Result<T, LessPassError>;
 /// The main struct, this is where we define the master password.
 #[derive(Debug, Clone)]
 pub struct LessPass {
+    /// Master password
     master: Master,
 }
 
@@ -245,8 +308,9 @@ impl LessPass {
         // Generate the password now that all prerequisite is available
 
         let charset = settings.get_characterset();
-        let chars = charset.get_chars().as_bytes();
-        let max_len = settings.get_password_len() as usize - charset.get_charset_count();
+        let chars = charset.get_chars();
+        let chars = chars.as_bytes();
+        let max_len = (settings.get_password_len() as usize).sub(charset.get_charset_count());
         let charset_len = BigUint::from(chars.len());
         let mut password = Vec::with_capacity(settings.get_password_len() as usize);
 
@@ -263,8 +327,8 @@ impl LessPass {
         // temporary password
         let mut additional_pass = Vec::with_capacity(charset.get_serials().len());
         for serial in charset.get_serials() {
-            let rem = entropy.consume(&charset.serial_len(*serial));
-            additional_pass.push(charset.get_serial(*serial).as_bytes()[rem])
+            let rem = entropy.consume(&CharacterSet::serial_len(*serial));
+            additional_pass.push(CharacterSet::get_serial(*serial).as_bytes()[rem])
         }
 
         // Step 3:
@@ -276,13 +340,27 @@ impl LessPass {
             password_len += &BIGINT1 as &BigUint;
         }
 
-        Ok(match String::from_utf8(password) {
-            Ok(s) => s,
-            _ => unreachable!(),
-        })
+        Ok(String::from_utf8(password)?)
     }
 
-    /// -
+    /// Generate a password, with the algorithm calculated based on password result length
+    ///
+    /// # Errors
+    /// See `[password()]`
+    pub async fn fut_password_with_algorithm_from_length(
+        &self,
+        site: &str,
+        login: &str,
+        counter: u32,
+        settings: &Settings,
+    ) -> Result<String> {
+        self.password_with_algorithm_from_length(site, login, counter, settings)
+    }
+
+    /// Generate a password, with the algorithm calculated based on password result length
+    ///
+    /// # Errors
+    /// See `[password()]`
     pub fn password_with_algorithm_from_length(
         &self,
         site: &str,
@@ -290,7 +368,7 @@ impl LessPass {
         counter: u32,
         settings: &Settings,
     ) -> Result<String> {
-        let mut settings = settings.clone();
+        let mut settings = *settings;
         settings.set_algorithm(match settings.get_password_len() {
             l if l <= 35 => Algorithm::SHA256,
             l if l <= 52 => Algorithm::SHA384,
@@ -439,7 +517,12 @@ impl LessPass {
     pub fn secret_totp(&self, site: &str, login: &str, secret: &[u8]) -> Result<Vec<u8>> {
         self.secret_otp(b"totp", site.as_bytes(), login.as_bytes(), secret)
     }
-    fn secret_otp(
+    /// Generic implementation used internally by `secret_totp` and `secret_hotp`
+    ///
+    /// # Errors
+    ///
+    /// `[LessPassError::InvalidLength]` if the `secret` is in an invalid length
+    pub fn secret_otp(
         &self,
         prefix: &[u8],
         site: &[u8],
@@ -460,10 +543,7 @@ impl LessPass {
         let len = hash.len().sub(1);
 
         // Get the start point to encode the information
-        let start = (match hash.last() {
-            Some(byte) => byte,
-            None => unreachable!(),
-        } & len as u8) as usize;
+        let start = (hash.last().expect("last byte") & len as u8) as usize;
 
         Ok(if encrypt {
             // Store the length of the secret
@@ -477,10 +557,7 @@ impl LessPass {
             hash
         } else {
             let mut decrypted = Vec::new();
-            let pass_length = (match secret.last() {
-                Some(byte) => byte,
-                None => unreachable!(),
-            } ^ hash[len]) as usize;
+            let pass_length = (secret.last().expect("last byte") ^ hash[len]) as usize;
             for i in 0..pass_length {
                 let pos = (start + i) % len;
                 decrypted.push(hash[pos] ^ secret[pos]);
@@ -511,7 +588,7 @@ impl LessPass {
     /// ```
     #[must_use]
     pub fn get_fingerprint(&self, salt: &[u8]) -> Fingerprint {
-        use crate::fingerprint::get_fingerprint;
+        use crate::fingerprint::get;
         use core::fmt::Write;
 
         let finger = self.master.fingerprint(salt);
@@ -519,79 +596,58 @@ impl LessPass {
         for &byte in &finger {
             write!(&mut s, "{:X}", byte).unwrap();
         }
-        get_fingerprint(s.as_str())
+        get(s.as_str())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::charset::{LowerCase, Numbers, Symbols, UpperCase};
+    use crate::charset::CharacterSet;
 
     use super::*;
 
     #[test]
     fn generate_password_fullcase() {
-        let lesspass = LessPass::new("test@lesspass.com", Algorithm::SHA256).unwrap();
+        let lesspass = LessPass::new("test@lesspass.com", Algorithm::SHA256).expect("lesspass");
         let _fing = lesspass.get_fingerprint(b"");
 
-        let settings = Settings::new(
-            16,
-            LowerCase::Using,
-            UpperCase::Using,
-            Numbers::Using,
-            Symbols::Using,
-        );
+        let settings = Settings::new(16, CharacterSet::LowercaseUppercaseNumbersSymbols);
         let pass = lesspass.password("lesspass.com", "test@lesspass.com", 1, &settings);
-        assert_eq!(pass.unwrap(), String::from("hjV@\\5ULp3bIs,6B"));
+        assert_eq!(pass.expect("password"), String::from("hjV@\\5ULp3bIs,6B"));
     }
 
     #[test]
     fn generate_password_without_lower() {
-        let lesspass = LessPass::new("test@lesspass.com", Algorithm::SHA256).unwrap();
+        let lesspass = LessPass::new("test@lesspass.com", Algorithm::SHA256).expect("lasspass");
         let _fing = lesspass.get_fingerprint(b"");
 
-        let settings = Settings::new(
-            16,
-            LowerCase::NotUsing,
-            UpperCase::Using,
-            Numbers::Using,
-            Symbols::Using,
-        );
+        let settings = Settings::new(16, CharacterSet::UppercaseNumbersSymbols);
         let pass = lesspass.password("lesspass.com", "test@lesspass.com", 1, &settings);
-        assert_eq!(pass.unwrap(), String::from("^>_9>+}OV?[3[_U,"));
+        assert_eq!(pass.expect("password"), String::from("^>_9>+}OV?[3[_U,"));
     }
 
     #[test]
     fn too_short() {
-        let lesspass = LessPass::new("password", Algorithm::SHA256).unwrap();
-        let settings = Settings::new(
-            4,
-            LowerCase::Using,
-            UpperCase::Using,
-            Numbers::Using,
-            Symbols::Using,
-        );
+        let lesspass = LessPass::new("password", Algorithm::SHA256).expect("lesspass");
+        let settings = Settings::new(4, CharacterSet::LowercaseUppercaseNumbersSymbols);
         let pass = lesspass.password("site", "login", 1, &settings);
         assert!(pass.is_err());
-        assert_eq!(pass.err().unwrap(), LessPassError::PasswordTooShort(5, 4));
+        assert_eq!(
+            pass.err().expect("error"),
+            LessPassError::PasswordTooShort(5, 4)
+        );
     }
 
     #[test]
     fn too_long() {
-        let lesspass = LessPass::new("password", Algorithm::SHA256).unwrap();
-        let mut settings = Settings::new(
-            99,
-            LowerCase::Using,
-            UpperCase::Using,
-            Numbers::Using,
-            Symbols::Using,
-        );
+        let lesspass = LessPass::new("password", Algorithm::SHA256).expect("lesspass");
+        let mut settings = Settings::new(99, CharacterSet::LowercaseUppercaseNumbersSymbols);
 
         settings.set_algorithm(Algorithm::SHA256);
         let pass = lesspass.password("site", "login", 1, &settings);
         assert!(pass.is_err());
         assert_eq!(
-            pass.err().unwrap(),
+            pass.err().expect("error"),
             LessPassError::PasswordTooLong(35, 99, Algorithm::SHA256)
         );
 
@@ -599,7 +655,7 @@ mod tests {
         let pass = lesspass.password("site", "login", 1, &settings);
         assert!(pass.is_err());
         assert_eq!(
-            pass.err().unwrap(),
+            pass.err().expect("error"),
             LessPassError::PasswordTooLong(35, 99, Algorithm::SHA3_256)
         );
 
@@ -607,7 +663,7 @@ mod tests {
         let pass = lesspass.password("site", "login", 1, &settings);
         assert!(pass.is_err());
         assert_eq!(
-            pass.err().unwrap(),
+            pass.err().expect("error"),
             LessPassError::PasswordTooLong(52, 99, Algorithm::SHA384)
         );
 
@@ -615,7 +671,7 @@ mod tests {
         let pass = lesspass.password("site", "login", 1, &settings);
         assert!(pass.is_err());
         assert_eq!(
-            pass.err().unwrap(),
+            pass.err().expect("error"),
             LessPassError::PasswordTooLong(52, 99, Algorithm::SHA3_384)
         );
 
@@ -623,7 +679,7 @@ mod tests {
         let pass = lesspass.password("site", "login", 1, &settings);
         assert!(pass.is_err());
         assert_eq!(
-            pass.err().unwrap(),
+            pass.err().expect("error"),
             LessPassError::PasswordTooLong(70, 99, Algorithm::SHA512)
         );
 
@@ -631,7 +687,7 @@ mod tests {
         let pass = lesspass.password("site", "login", 1, &settings);
         assert!(pass.is_err());
         assert_eq!(
-            pass.err().unwrap(),
+            pass.err().expect("error"),
             LessPassError::PasswordTooLong(70, 99, Algorithm::SHA3_512)
         );
     }
@@ -642,49 +698,59 @@ mod tests {
             0x30, 0x41, 0x71, 0x67, 0x2B, 0x59, 0x4F, 0x5A, 0x35, 0x31, 0xA7, 0x53, 0x54, 0x4B,
             0x74, 0x35, 0x4E, 0x6D, 0x36, 0x66,
         ];
-        let master = LessPass::new("123", Algorithm::SHA256).unwrap();
+        let master = LessPass::new("123", Algorithm::SHA256).expect("lesspass");
         let encrypted = master
             .secret_totp("example.com", "test@example.com", secret)
-            .unwrap();
+            .expect("encrypted otp");
         assert_eq!(encrypted.len(), 32);
         let decrypted = master
             .secret_totp("example.com", "test@example.com", &encrypted)
-            .unwrap();
+            .expect("decrypted otp");
 
         assert_eq!(secret.to_vec(), decrypted);
     }
 
     #[test]
     fn hotp_encrypt_decrypt_512() {
-        let master = LessPass::new("DEADBEEF", Algorithm::SHA256).unwrap();
+        let master = LessPass::new("DEADBEEF", Algorithm::SHA256).expect("lesspass");
 
         // More than 32 bytes to use sha512
         let secret = b"12345678901234567890123456789012345678901234567890";
 
         let encrypted = master
             .secret_hotp("example.com", "test@example.com", secret)
-            .unwrap();
+            .expect("encrypted otp");
         assert_eq!(encrypted.len(), 64);
         let decrypted = master
             .secret_hotp("example.com", "test@example.com", &encrypted)
-            .unwrap();
+            .expect("decrypted otp");
         assert_eq!(secret.to_vec(), decrypted);
     }
 
     #[test]
     fn wrong_otp_secret_length() {
-        let master = LessPass::new("DEADBEEF", Algorithm::SHA256).unwrap();
+        let master = LessPass::new("DEADBEEF", Algorithm::SHA256).expect("lesspass");
 
         // no secret, so error
-        let secret = b"";
-        let encrypted = master.secret_hotp("example.com", "test@example.com", secret);
-        assert!(encrypted.is_err());
-        assert_eq!(encrypted.err().unwrap(), LessPassError::InvalidLength);
+        {
+            let secret = b"";
+            let encrypted = master.secret_hotp("example.com", "test@example.com", secret);
+            assert!(encrypted.is_err());
+            assert_eq!(
+                encrypted.err().expect("error"),
+                LessPassError::InvalidLength
+            );
+        }
 
         // more than 64 bytes
-        let secret = b"12345678901234567890123456789012345678901234567890123456789012345";
-        let encrypted = master.secret_hotp("example.com", "test@example.com", secret);
-        assert!(encrypted.is_err());
-        assert_eq!(encrypted.err().unwrap(), LessPassError::InvalidLength);
+        {
+            let secret = b"12345678901234567890123456789012345678901234567890123456789012345";
+            let encrypted = master.secret_hotp("example.com", "test@example.com", secret);
+            assert!(encrypted.is_err());
+            assert_eq!(
+                encrypted.err().expect("error"),
+                LessPassError::InvalidLength
+            );
+        }
     }
 }

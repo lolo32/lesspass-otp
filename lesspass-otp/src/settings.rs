@@ -1,5 +1,4 @@
-use crate::charset::{CharacterSet, LowerCase, Numbers, Symbols, UpperCase};
-use crate::Algorithm;
+use crate::{charset::CharacterSet, Algorithm};
 
 /// Settings to derive a new password.
 ///
@@ -8,16 +7,20 @@ use crate::Algorithm;
 /// # Examples
 /// ```
 /// use lesspass_otp::Settings;
-/// use lesspass_otp::charset::{UpperCase, LowerCase, Symbols, Numbers};
+/// use lesspass_otp::charset::CharacterSet;
 ///
 /// // Create for a new password of 20 characters length, lower and uppercase characters and numbers
-/// let settings = Settings::new(20, LowerCase::Using, UpperCase::Using, Numbers::Using, Symbols::NotUsing);
+/// let settings = Settings::new(20, CharacterSet::LowercaseUppercaseNumbers);
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Copy)]
 pub struct Settings {
+    /// Number of iterations
     iterations: Option<u32>,
+    /// Password length
     pass_len: u8,
+    /// Characters set to use
     char_set: CharacterSet,
+    /// Algorithm to use
     algorithm: Option<Algorithm>,
 }
 
@@ -25,16 +28,10 @@ pub struct Settings {
 impl Settings {
     /// Instantiate a new [`Settings`], specifying the characters type and password length.
     #[must_use]
-    pub fn new(
-        pass_len: u8,
-        lower: LowerCase,
-        upper: UpperCase,
-        num: Numbers,
-        sym: Symbols,
-    ) -> Self {
+    pub fn new(pass_len: u8, characters: CharacterSet) -> Self {
         Self {
             pass_len,
-            char_set: CharacterSet::new(lower, upper, num, sym),
+            char_set: characters,
             ..Self::default()
         }
     }
@@ -48,10 +45,10 @@ impl Settings {
     /// # Examples
     /// ```
     /// use lesspass_otp::Settings;
-    /// use lesspass_otp::charset::{UpperCase, LowerCase, Symbols, Numbers};
+    /// use lesspass_otp::charset::CharacterSet;
     ///
     /// // Create for a new password of 20 characters length, lower and uppercase characters and numbers
-    /// let mut settings = Settings::new(20, LowerCase::Using, UpperCase::Using, Numbers::Using, Symbols::NotUsing);
+    /// let mut settings = Settings::new(20, CharacterSet::LowercaseUppercaseNumbers);
     /// settings.set_iterations(20_000);
     /// ```
     pub fn set_iterations(&mut self, iterations: u32) {
@@ -61,7 +58,7 @@ impl Settings {
     /// Get number of iterations configured, or default value.
     #[must_use]
     pub fn get_iterations(&self) -> u32 {
-        self.iterations.unwrap_or_else(|| 100_000)
+        self.iterations.unwrap_or(100_000)
     }
 
     /// Get password length.
@@ -89,10 +86,10 @@ impl Settings {
     /// # Examples
     /// ```
     /// use lesspass_otp::{Settings, Algorithm};
-    /// use lesspass_otp::charset::{UpperCase, LowerCase, Symbols, Numbers};
+    /// use lesspass_otp::charset::CharacterSet;
     ///
     /// // Create for a new password of 20 characters length, lower and uppercase characters and numbers
-    /// let mut settings = Settings::new(20, LowerCase::Using, UpperCase::Using, Numbers::Using, Symbols::NotUsing);
+    /// let mut settings = Settings::new(20, CharacterSet::LowercaseUppercaseNumbers);
     /// settings.set_algorithm(Algorithm::SHA512);
     /// ```
     pub fn set_algorithm(&mut self, algorithm: Algorithm) {
@@ -111,12 +108,7 @@ impl Default for Settings {
         Self {
             iterations: None,
             pass_len: 16,
-            char_set: CharacterSet::new(
-                LowerCase::Using,
-                UpperCase::Using,
-                Numbers::Using,
-                Symbols::Using,
-            ),
+            char_set: CharacterSet::LowercaseUppercaseNumbersSymbols,
             algorithm: None,
         }
     }
@@ -128,27 +120,11 @@ impl serde::Serialize for Settings {
     where
         S: serde::Serializer,
     {
-        use crate::charset::Set;
-
         // Note: do not change the serialization format, or it may break
         // forward and backward compatibility of serialized data!
-        let serials = self.get_characterset().get_serials();
-        let mut serials_tuple = (false, false, false, false);
-        for serial in serials {
-            match serial {
-                Set::Lowercase => serials_tuple.0 = true,
-                Set::Uppercase => serials_tuple.1 = true,
-                Set::Numbers => serials_tuple.2 = true,
-                Set::Symbols => serials_tuple.3 = true,
-            }
-        }
-        (
-            self.iterations,
-            self.pass_len,
-            self.algorithm,
-            serials_tuple,
-        )
-            .serialize(serializer)
+
+        let characters: u8 = (*self.get_characterset()).into();
+        (self.iterations, self.pass_len, self.algorithm, characters).serialize(serializer)
     }
 }
 
@@ -158,32 +134,17 @@ impl<'de> serde::Deserialize<'de> for Settings {
     where
         D: serde::Deserializer<'de>,
     {
-        type SerdeSetting = (Option<u32>, u8, Option<Algorithm>, (bool, bool, bool, bool));
+        use std::convert::TryFrom;
+
+        /// Description of a serialized password params
+        type SerdeSetting = (Option<u32>, u8, Option<Algorithm>, u8);
+
         let (iterations, pass_len, algorithm, serials): SerdeSetting =
             serde::Deserialize::deserialize(deserializer)?;
 
-        let lower = if serials.0 {
-            LowerCase::Using
-        } else {
-            LowerCase::NotUsing
-        };
-        let upper = if serials.1 {
-            UpperCase::Using
-        } else {
-            UpperCase::NotUsing
-        };
-        let num = if serials.2 {
-            Numbers::Using
-        } else {
-            Numbers::NotUsing
-        };
-        let sym = if serials.3 {
-            Symbols::Using
-        } else {
-            Symbols::NotUsing
-        };
+        let characters = CharacterSet::try_from(serials).map_err(serde::de::Error::custom)?;
 
-        let mut settings = Self::new(pass_len, lower, upper, num, sym);
+        let mut settings = Self::new(pass_len, characters);
         if let Some(algo) = algorithm {
             settings.set_algorithm(algo);
         }
@@ -199,13 +160,7 @@ mod tests {
 
     #[test]
     fn change_number_of_iterations() {
-        let mut settings = Settings::new(
-            16,
-            LowerCase::NotUsing,
-            UpperCase::NotUsing,
-            Numbers::NotUsing,
-            Symbols::NotUsing,
-        );
+        let mut settings = Settings::new(16, CharacterSet::Lowercase);
         assert_eq!(settings.get_iterations(), 100_000);
         settings.set_iterations(9_999);
         assert_eq!(settings.get_iterations(), 9_999);
@@ -213,13 +168,8 @@ mod tests {
 
     #[test]
     fn create_with_default() {
-        let settings: Settings = Default::default();
-        let charset = CharacterSet::new(
-            LowerCase::Using,
-            UpperCase::Using,
-            Numbers::Using,
-            Symbols::Using,
-        );
+        let settings = Settings::default();
+        let charset = CharacterSet::LowercaseUppercaseNumbersSymbols;
         assert_eq!(settings.get_iterations(), 100_000);
         assert_eq!(settings.get_password_len(), 16);
         assert_eq!(settings.get_characterset(), &charset);
@@ -228,22 +178,46 @@ mod tests {
 
     #[test]
     fn store_settings_in_creation() {
-        let settings = Settings::new(
-            29,
-            LowerCase::NotUsing,
-            UpperCase::Using,
-            Numbers::NotUsing,
-            Symbols::Using,
-        );
-        let charset = CharacterSet::new(
-            LowerCase::NotUsing,
-            UpperCase::Using,
-            Numbers::NotUsing,
-            Symbols::Using,
-        );
+        let settings = Settings::new(29, CharacterSet::UppercaseSymbols);
+        let charset = CharacterSet::UppercaseSymbols;
         assert_eq!(settings.get_iterations(), 100_000);
         assert_eq!(settings.get_password_len(), 29);
         assert_eq!(settings.get_characterset(), &charset);
         assert!(settings.get_algorithm().is_none());
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn serde() {
+        use serde_test::{assert_tokens, Token};
+
+        let mut settings = Settings::new(42, CharacterSet::LowercaseNumbersSymbols);
+        assert_tokens(
+            &settings,
+            &[
+                Token::Tuple { len: 4 },
+                Token::None,
+                Token::U8(42),
+                Token::None,
+                Token::U8(13),
+                Token::TupleEnd,
+            ],
+        );
+
+        settings.set_iterations(666);
+        settings.set_algorithm(Algorithm::SHA512);
+        assert_tokens(
+            &settings,
+            &[
+                Token::Tuple { len: 4 },
+                Token::Some,
+                Token::U32(666),
+                Token::U8(42),
+                Token::Some,
+                Token::Str("Sha2-512"),
+                Token::U8(13),
+                Token::TupleEnd,
+            ],
+        );
     }
 }

@@ -1,36 +1,20 @@
-pub use core::time::Duration;
-
-#[cfg(not(target_arch = "wasm32"))]
-pub fn now() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::SystemTime::UNIX_EPOCH)
-        .unwrap()
-        .as_millis() as i64
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-pub type Instant = std::time::Instant;
-
-#[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-#[cfg(target_arch = "wasm32")]
+pub use core::time::Duration;
+
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(js_namespace = Date, js_name = now)]
     fn date_now() -> f64;
 }
 
-#[cfg(target_arch = "wasm32")]
 pub fn now() -> i64 {
     date_now() as i64
 }
 
-#[cfg(target_arch = "wasm32")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Instant(u64);
 
-#[cfg(target_arch = "wasm32")]
 impl Instant {
     #[inline]
     pub fn now() -> Self {

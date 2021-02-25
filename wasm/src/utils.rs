@@ -1,36 +1,12 @@
 use seed::prelude::*;
-use ulid::Ulid;
 
-use crate::{ui::*, Credential, Model, STORAGE_KEY};
+use lesspass_otp::charset::{CharUse, CharacterSet, Set};
+
+use crate::ui::W3_THEME_LIGHT;
 
 /// Search if the toggle button is disabled
 pub(crate) fn is_button_disabled(el: &ElRef<web_sys::HtmlButtonElement>) -> bool {
     el.get().unwrap().class_list().contains(W3_THEME_LIGHT)
-}
-
-/// Return the index in the credential list from the id
-pub(crate) fn search_credential(
-    credentials: &[Credential],
-    id: Ulid,
-) -> Option<(usize, &Credential)> {
-    if let Some(index) = credentials.iter().position(|c| c.id == id) {
-        Some((index, credentials.get(index).as_ref().unwrap()))
-    } else {
-        None
-    }
-    // for (index, credential) in credentials.iter().enumerate() {
-    //     if credential.id == id {
-    //         return Some((index, credential));
-    //     }
-    // }
-    //
-    // None
-}
-
-/// Save the credential list in the LocalStorage
-pub(crate) fn save_storage(model: &Model) {
-    LocalStorage::insert(STORAGE_KEY, &model.credentials)
-        .expect("save credentials to LocalStorage");
 }
 
 /// Helper to stop the event propagation
@@ -50,5 +26,49 @@ pub(crate) fn validate_keyboard(
     match keyboard_event.key().as_str() {
         super::ENTER_KEY => msg,
         _ => None,
+    }
+}
+
+pub(crate) struct PassChar {
+    pub(crate) class: String,
+    pub(crate) character: String,
+}
+
+pub(crate) fn format_password(password: &str) -> Vec<PassChar> {
+    password
+        .chars()
+        .map(|c| match c {
+            c if c.is_numeric() => PassChar {
+                class: "number".to_owned(),
+                character: c.to_string(),
+            },
+            c if c.is_lowercase() => PassChar {
+                class: "lower".to_owned(),
+                character: c.to_string(),
+            },
+            c if c.is_uppercase() => PassChar {
+                class: "upper".to_owned(),
+                character: c.to_string(),
+            },
+            c => PassChar {
+                class: "symbol".to_owned(),
+                character: c.to_string(),
+            },
+        })
+        .collect()
+}
+
+#[allow(clippy::type_complexity)]
+pub(crate) fn char_fn(
+    set: Set,
+) -> (
+    fn(CharacterSet) -> bool,
+    fn(&mut CharacterSet, CharUse) -> &mut CharacterSet,
+) {
+    match set {
+        Set::Lowercase => (CharacterSet::is_lower, CharacterSet::set_lower),
+        Set::Uppercase => (CharacterSet::is_upper, CharacterSet::set_upper),
+        Set::Numbers => (CharacterSet::is_number, CharacterSet::set_number),
+        Set::Symbols => (CharacterSet::is_symbol, CharacterSet::set_symbol),
     }
 }

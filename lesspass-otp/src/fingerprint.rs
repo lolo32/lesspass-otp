@@ -79,7 +79,8 @@ type ColorIcon = (&'static str, &'static str);
 /// master password.
 pub type Fingerprint = [ColorIcon; 3];
 
-pub fn get_fingerprint(fingerprint: &str) -> Fingerprint {
+/// Return the fingerprint of a string parameter, on 3 symbols with 3 colors
+pub(crate) fn get(fingerprint: &str) -> Fingerprint {
     let hash1 = &fingerprint[0..6];
     let hash2 = &fingerprint[6..12];
     let hash3 = &fingerprint[12..18];
@@ -98,7 +99,7 @@ mod tests {
     #[test]
     fn fingerprint_internet() {
         assert_eq!(
-            get_fingerprint("e56a207acd1e6714735487c199c6f095844b7cc8e5971d86c003a7b6f36ef51e"),
+            get("e56a207acd1e6714735487c199c6f095844b7cc8e5971d86c003a7b6f36ef51e"),
             [
                 ("#FFB5DA", "fa-flask"),
                 ("#009191", "fa-archive"),

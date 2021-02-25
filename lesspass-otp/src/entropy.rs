@@ -10,7 +10,7 @@ impl Entropy {
     /// Return a salt, combining `site`, `login` and `counter` from strings.
     #[must_use]
     pub fn salt(site: &str, login: &str, counter: u32) -> Vec<u8> {
-        Self::salt_byte(site.as_bytes(), login.as_bytes(), &to_hex(counter))
+        Self::salt_byte(site.as_bytes(), login.as_bytes(), &to(counter))
     }
     /// Return a salt, combining `site`, `login` and `counter` from byte array.
     #[must_use]

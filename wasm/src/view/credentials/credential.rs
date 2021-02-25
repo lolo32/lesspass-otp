@@ -1,9 +1,13 @@
 use seed::{prelude::*, *};
-use ulid::Ulid;
 
 use crate::{credential::Credential, msg::Msg, otp::OtpType, ui::*};
 
-pub fn view_credential(id: Ulid, credential: &Credential) -> Node<Msg> {
+///
+/// Display an item representing a website.
+/// It displays only public information: Website name, Username, and Logo
+///
+pub fn view_credential(credential: &Credential) -> Node<Msg> {
+    let id = credential.id;
     div![
         C![W3_COL, "l3", "m4", "s6", W3_SECTION],
         div![
@@ -11,18 +15,8 @@ pub fn view_credential(id: Ulid, credential: &Credential) -> Node<Msg> {
             attrs! {At::TabIndex => 0},
             header![
                 C![W3_DISPLAY_CONTAINER, W3_THEME, W3_CENTER],
-                match credential.otp {
-                    OtpType::None => empty!(),
-                    _ => span![fa("clock-o"), C![W3_DISPLAY_TOPRIGHT, W3_XLARGE]],
-                },
-                if credential.logo_url.trim().is_empty() {
-                    span![fa("user"), C![W3_XLARGE, W3_DISPLAY_MIDDLE]]
-                } else {
-                    img![
-                        C![W3_IMAGE, W3_DISPLAY_MIDDLE],
-                        attrs! {At::Alt => "logo", At::Src => &credential.logo_url}
-                    ]
-                }
+                display_clock_icon(credential),
+                display_logo(credential),
             ],
             div![C![W3_CONTAINER], p![C![CROP], &credential.site]],
             footer![
@@ -33,4 +27,24 @@ pub fn view_credential(id: Ulid, credential: &Credential) -> Node<Msg> {
             keyboard_event(move || Some(Msg::ShowCredential(id)))
         ]
     ]
+}
+
+/// Display a clock icon if a TOTP is configured
+fn display_clock_icon(credential: &Credential) -> Node<Msg> {
+    match credential.otp {
+        OtpType::None => empty!(),
+        _ => span![fa("clock-o"), C![W3_DISPLAY_TOPRIGHT, W3_XLARGE]],
+    }
+}
+
+/// Display the website logo if configured, an user icon if not
+fn display_logo(credential: &Credential) -> Node<Msg> {
+    if credential.logo_url.trim().is_empty() {
+        span![fa("user"), C![W3_XLARGE, W3_DISPLAY_MIDDLE]]
+    } else {
+        img![
+            C![W3_IMAGE, W3_DISPLAY_MIDDLE],
+            attrs! {At::Alt => "logo", At::Src => &credential.logo_url}
+        ]
+    }
 }

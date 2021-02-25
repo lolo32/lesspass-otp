@@ -1,4 +1,5 @@
 use seed::prelude::StreamHandle;
+
 use lesspass_otp::Algorithm;
 
 #[derive(Debug, serde::Deserialize, serde::Serialize, Clone)]

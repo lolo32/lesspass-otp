@@ -9,20 +9,12 @@ use crate::{Credential, STORAGE_KEY};
 pub struct Credentials(Vec<Credential>);
 
 impl Credentials {
-    pub fn new() -> Self {
-        Self(Vec::new())
-    }
-
     pub fn new_from_localstorage() -> Self {
         Self(LocalStorage::get(STORAGE_KEY).unwrap_or_default())
     }
 
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
-    }
-
-    pub fn len(&self) -> usize {
-        self.0.len()
     }
 
     pub fn push(&mut self, credential: Credential) {
